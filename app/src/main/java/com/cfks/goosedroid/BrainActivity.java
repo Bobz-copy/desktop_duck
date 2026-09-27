@@ -44,6 +44,7 @@ public class BrainActivity extends AppCompatActivity implements BrainController.
     private View urlLayout;
     private View modelLayout;
     private View apiKeyLayout;
+    private View apiKeyDeleteButton;
     private View intervalLayout;
     private TextInputEditText urlInput;
     private TextInputEditText modelInput;
@@ -115,6 +116,8 @@ public class BrainActivity extends AppCompatActivity implements BrainController.
         urlLayout = findViewById(R.id.BrainUrlLayout);
         modelLayout = findViewById(R.id.BrainModelLayout);
         apiKeyLayout = findViewById(R.id.BrainApiKeyLayout);
+        apiKeyDeleteButton = findViewById(R.id.BrainApiKeyDelete);
+        apiKeyDeleteButton.setOnClickListener(v -> confirmDeleteApiKey());
         intervalLayout = findViewById(R.id.BrainIntervalLayout);
         urlInput = findViewById(R.id.BrainUrl);
         modelInput = findViewById(R.id.BrainModel);
@@ -198,8 +201,10 @@ public class BrainActivity extends AppCompatActivity implements BrainController.
         modelInput.setText(config.getModel(entry.id, entry.defaultModel));
         // La clave guardada nunca se vuelve a mostrar: el campo vacío la conserva
         apiKeyInput.setText("");
-        apiKeyInput.setHint(config.hasApiKey(entry.id)
-                ? getString(R.string.BrainApiKeySaved) : null);
+        boolean hasSavedKey = config.hasApiKey(entry.id);
+        apiKeyInput.setHint(hasSavedKey ? getString(R.string.BrainApiKeySaved) : null);
+        apiKeyDeleteButton.setVisibility(entry.needsApiKey && hasSavedKey
+                ? View.VISIBLE : View.GONE);
         intervalInput.setText(String.valueOf(config.getIntervalSeconds()));
         testResult.setText("");
     }
@@ -232,6 +237,19 @@ public class BrainActivity extends AppCompatActivity implements BrainController.
 
         testResult.setText(R.string.BrainThinking);
         startRequest(Pending.TEST, BrainTrigger.Kind.TEST, "");
+    }
+
+    private void confirmDeleteApiKey() {
+        BackendCatalog.Entry entry = selectedEntry;
+        new MaterialAlertDialogBuilder(this)
+                .setMessage(getString(R.string.BrainApiKeyDeleteQuestion, entry.title))
+                .setPositiveButton(R.string.BrainApiKeyDelete, (dialog, which) -> {
+                    config.setApiKey(entry.id, "");
+                    BrainController.reloadConfig(this);
+                    selectEntry(entry);
+                })
+                .setNegativeButton(R.string.Cancel, null)
+                .show();
     }
 
     private static int parseInterval(String text) {

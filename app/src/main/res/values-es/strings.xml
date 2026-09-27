@@ -61,4 +61,6 @@
     <string name="Heal">Remedio</string>
     <string name="CleaningPet">¡Hora del baño!</string>
     <string name="HealingPet">Dándole el remedio...</string>
+    <string name="BrainApiKeyDelete">Borrar clave guardada</string>
+    <string name="BrainApiKeyDeleteQuestion">¿Borrar la clave de %1$s de este teléfono?</string>
 </resources>

@@ -131,4 +131,6 @@
     <string name="Heal">Medicine</string>
     <string name="CleaningPet">Bath time!</string>
     <string name="HealingPet">Giving medicine...</string>
+    <string name="BrainApiKeyDelete">Delete saved key</string>
+    <string name="BrainApiKeyDeleteQuestion">Delete the %1$s key from this phone?</string>
 </resources>
