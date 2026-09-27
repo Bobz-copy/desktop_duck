@@ -12,7 +12,6 @@ import java.util.*;
 
 public class ConfigureActivity {
     private static final String TAG = "ConfigureActivity";
-    private static final String TEMP_SUFFIX = ".tmp";
     private static final Object FILE_LOCK = new Object();
     private final Context context;
     private Properties properties;
@@ -53,22 +52,14 @@ public class ConfigureActivity {
                 merged.setProperty(key, properties.getProperty(key));
             }
 
-            // Escritura atómica: archivo temporal + rename. Si el proceso muere a
-            // mitad, el archivo original queda intacto.
-            File temp = new File(filename + TEMP_SUFFIX);
-            try (FileOutputStream fileOutputStream = new FileOutputStream(temp);
-                 BufferedOutputStream out = new BufferedOutputStream(fileOutputStream)) {
-                merged.store(out, null);
-                out.flush();
-                fileOutputStream.getFD().sync();
+            // Si el proceso muere a mitad, el archivo original queda intacto
+            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+            merged.store(buffer, null);
+            try {
+                AtomicFiles.write(target, buffer.toByteArray());
             } catch (IOException e) {
                 Log.e(TAG, "Error saving config file: " + filename, e);
-                temp.delete();
                 throw e;
-            }
-            if (!temp.renameTo(target)) {
-                temp.delete();
-                throw new IOException("No se pudo reemplazar " + filename);
             }
         }
     }
