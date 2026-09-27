@@ -44,6 +44,7 @@ public final class PromptBuilder {
         return text.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]+", " ").trim();
     }
     static final int DIARY_MAX_SAY_LENGTH = 300;
+    static final int NOTE_MAX_SAY_LENGTH = 200;
     /** Por debajo de esto la batería es un tema; por encima, ruido. */
     private static final int LOW_BATTERY_PERCENT = 20;
 
@@ -65,16 +66,28 @@ public final class PromptBuilder {
     }
 
     public LlmRequest build(PetSnapshot pet, BrainTrigger trigger, List<String> memories) {
-        boolean isLongForm = trigger.kind == BrainTrigger.Kind.DIARY;
+        int maxSayLength = maxSayLength(trigger);
+        boolean isLongForm = maxSayLength > BrainIntent.MAX_SAY_LENGTH;
         return LlmRequest.builder()
                 .systemPrompt(buildSystemPrompt(pet.petName))
                 .userPrompt(buildUserPrompt(pet, trigger, memories))
                 .maxTokens(isLongForm ? DIARY_MAX_TOKENS : LlmRequest.DEFAULT_MAX_TOKENS)
                 .jsonExpected(true)
-                .jsonSchema(IntentSchema.build(allowsMemory(trigger), isLongForm
-                        ? DIARY_MAX_SAY_LENGTH : BrainIntent.MAX_SAY_LENGTH))
+                .jsonSchema(IntentSchema.build(allowsMemory(trigger), maxSayLength))
                 .tag(trigger.kind.name())
                 .build();
+    }
+
+    /** Largo máximo de "say": el diario y las notas admiten más que una frase. */
+    public static int maxSayLength(BrainTrigger trigger) {
+        switch (trigger.kind) {
+            case DIARY:
+                return DIARY_MAX_SAY_LENGTH;
+            case NOTE:
+                return NOTE_MAX_SAY_LENGTH;
+            default:
+                return BrainIntent.MAX_SAY_LENGTH;
+        }
     }
 
     String buildSystemPrompt(String petName) {
@@ -126,6 +139,11 @@ public final class PromptBuilder {
         sb.append("- Hambre: ").append(describeHunger(pet.hunger)).append("\n");
         sb.append("- Energía: ").append(describeEnergy(pet.energy)).append("\n");
         sb.append("- Ánimo: ").append(describeHappiness(pet.happiness)).append("\n");
+        // Limpieza y salud solo cuando son un tema, para no distraer a modelos chicos
+        String hygiene = describeHygiene(pet.hygiene);
+        if (!hygiene.isEmpty()) sb.append("- Limpieza: ").append(hygiene).append("\n");
+        String health = describeHealth(pet.health);
+        if (!health.isEmpty()) sb.append("- Salud: ").append(health).append("\n");
         String personality = describePersonality(pet);
         if (!personality.isEmpty()) {
             sb.append("- Carácter: ").append(personality).append("\n");
@@ -203,6 +221,15 @@ public final class PromptBuilder {
                 return "Tu humano volvió" + suffix(detail) + ". Saludalo a tu manera.";
             case TEST:
                 return "Tu humano quiere saber si estás ahí. Presentate en una frase.";
+            case CLEANED:
+                return "Tu humano te acaba de bañar. Reaccioná.";
+            case HEALED:
+                return "Tu humano te acaba de dar un remedio. Reaccioná.";
+            case NOTE:
+                return "Le vas a dejar una nota de papel a tu humano en la pantalla. Escribí en "
+                        + "\"say\" lo que dice la nota: un mensaje, una lista o un consejo de "
+                        + "ganso, gracioso y con tu carácter. Hasta " + NOTE_MAX_SAY_LENGTH
+                        + " caracteres.";
             case IDLE_THOUGHT:
             default:
                 return "No pasa nada en particular. Pensá en voz alta o hacé algo.";
@@ -246,6 +273,19 @@ public final class PromptBuilder {
         if (happiness < 70) return "tranquilo";
         if (happiness < 90) return "contento";
         return "feliz";
+    }
+
+    static String describeHygiene(float hygiene) {
+        if (hygiene < 15) return "hecho un asco, lleno de barro";
+        if (hygiene < 40) return "bastante sucio";
+        return "";
+    }
+
+    static String describeHealth(float health) {
+        if (health < 20) return "muy enfermo";
+        if (health < com.cfks.goosedroid.PetNeeds.SICK_THRESHOLD) return "enfermo, con fiebre";
+        if (health < 70) return "un poco decaído";
+        return "";
     }
 
     static String describePersonality(PetSnapshot pet) {

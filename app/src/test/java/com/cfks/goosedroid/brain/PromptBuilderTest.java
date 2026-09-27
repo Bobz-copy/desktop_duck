@@ -157,6 +157,19 @@ public class PromptBuilderTest {
     }
 
     @Test
+    public void userPrompt_mentionsHygieneAndHealthOnlyWhenTheyMatter() {
+        BrainTrigger idle = BrainTrigger.of(BrainTrigger.Kind.IDLE_THOUGHT);
+
+        String fine = builder.buildUserPrompt(basePet().build(), idle, null);
+        String bad = builder.buildUserPrompt(basePet().care(10f, 30f).build(), idle, null);
+
+        assertFalse(fine.contains("Limpieza"));
+        assertFalse(fine.contains("Salud"));
+        assertTrue(bad.contains("barro"));
+        assertTrue(bad.contains("enfermo"));
+    }
+
+    @Test
     public void chatTrigger_wrapsUserTextInDelimiters() {
         String prompt = builder.buildUserPrompt(basePet().build(),
                 new BrainTrigger(BrainTrigger.Kind.CHAT, "hola ganso"), null);
@@ -208,6 +221,19 @@ public class PromptBuilderTest {
             count++;
         }
         assertEquals(3, count);
+    }
+
+    @Test
+    public void note_allowsLongerTextThanAThoughtButLessThanTheDiary() {
+        int note = PromptBuilder.maxSayLength(BrainTrigger.of(BrainTrigger.Kind.NOTE));
+        int thought = PromptBuilder.maxSayLength(BrainTrigger.of(BrainTrigger.Kind.IDLE_THOUGHT));
+        int diary = PromptBuilder.maxSayLength(BrainTrigger.of(BrainTrigger.Kind.DIARY));
+
+        assertTrue(note > thought);
+        assertTrue(note < diary);
+        LlmRequest request = builder.build(basePet().build(),
+                BrainTrigger.of(BrainTrigger.Kind.NOTE), null);
+        assertTrue(request.jsonSchema.contains("\"maxLength\":" + note));
     }
 
     @Test

@@ -71,6 +71,9 @@ public class GooseOverlayService extends Service implements GooseLayerView.Host 
     private static final float MAX_WORLD_SCALE = 10f;
     private static final long WIDGET_REFRESH_INTERVAL_MS = 60_000L;
 
+    private static final String STATE_PREFS = "goose_overlay";
+    private static final String KEY_ENABLED = "enabled";
+
     private static boolean isServiceRunning = false;
     private static boolean isTouchEnabled = true;
     private static GooseOverlayService activeInstance;
@@ -117,8 +120,21 @@ public class GooseOverlayService extends Service implements GooseLayerView.Host 
         }
     }
 
+    /** Apagado pedido por el usuario: no vuelve a encenderse solo. */
     public static void stop(Context context) {
+        setEnabledByUser(context, false);
         context.stopService(new Intent(context, GooseOverlayService.class));
+    }
+
+    /** true si el usuario dejó el ganso encendido (sobrevive a reinicios). */
+    public static boolean isEnabledByUser(Context context) {
+        return context.getSharedPreferences(STATE_PREFS, Context.MODE_PRIVATE)
+                .getBoolean(KEY_ENABLED, false);
+    }
+
+    private static void setEnabledByUser(Context context, boolean enabled) {
+        context.getSharedPreferences(STATE_PREFS, Context.MODE_PRIVATE)
+                .edit().putBoolean(KEY_ENABLED, enabled).apply();
     }
 
     /** Activa o desactiva los toques sobre el ganso. */
@@ -153,6 +169,8 @@ public class GooseOverlayService extends Service implements GooseLayerView.Host 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null && ACTION_STOP.equals(intent.getAction())) {
+            // Apagado desde la notificación: es una decisión del usuario
+            setEnabledByUser(this, false);
             stopSelf();
             return START_NOT_STICKY;
         }
@@ -165,6 +183,7 @@ public class GooseOverlayService extends Service implements GooseLayerView.Host 
             return START_NOT_STICKY;
         }
 
+        setEnabledByUser(this, true);
         if (worldView == null) {
             try {
                 showOverlay();

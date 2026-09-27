@@ -173,6 +173,10 @@ public class GooseLLM {
         language = GoosePhrases.parseLanguage(languageName);
     }
 
+    public static boolean isSpanish() {
+        return language == GoosePhrases.Language.SPANISH;
+    }
+
     // ============== MEMORY MANAGEMENT ==============
 
     public static void recordEvent(String type, String detail, float emotionalImpact) {

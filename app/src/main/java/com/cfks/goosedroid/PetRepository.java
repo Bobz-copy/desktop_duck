@@ -24,6 +24,7 @@ public final class PetRepository {
     private static final float DEFAULT_ENERGY = 100f;
     private static final float DEFAULT_HAPPINESS = 75f;
     private static final float DEFAULT_MISCHIEF = 50f;
+    private static final float DEFAULT_CARE = 100f;
     private static final String DEFAULT_PET_NAME = "Goose";
 
     private static boolean isLoaded = false;
@@ -81,6 +82,11 @@ public final class PetRepository {
                 parseFloat(config.getIniKey("PetEnergy"), DEFAULT_ENERGY),
                 parseFloat(config.getIniKey("PetHappiness"), DEFAULT_HAPPINESS),
                 lastPlayed);
+        // Higiene y salud se cargan después: loadState ya aplicó el tiempo offline
+        // a lo demás; la higiene offline se aplica al próximo updateOfflineTime.
+        PetNeeds.get().loadCare(
+                parseFloat(config.getIniKey("PetHygiene"), DEFAULT_CARE),
+                parseFloat(config.getIniKey("PetHealth"), DEFAULT_CARE));
 
         PetPersonality.get().loadState(
                 parseFloat(config.getIniKey("PersonalityPlayfulness"), 0f),
@@ -128,6 +134,8 @@ public final class PetRepository {
         props.setProperty("PetHunger", String.valueOf(needs.hunger));
         props.setProperty("PetEnergy", String.valueOf(needs.energy));
         props.setProperty("PetHappiness", String.valueOf(needs.happiness));
+        props.setProperty("PetHygiene", String.valueOf(needs.hygiene));
+        props.setProperty("PetHealth", String.valueOf(needs.health));
         props.setProperty("LastPlayedTimestamp", String.valueOf(System.currentTimeMillis()));
         props.setProperty("PetModeEnabled", TheGoose.petModeEnabled ? "True" : "False");
 

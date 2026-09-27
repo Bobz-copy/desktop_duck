@@ -125,4 +125,10 @@
     <string name="OverlayNotificationTalk">Talk</string>
     <string name="BrainVoice">Read its words aloud</string>
     <string name="BrainQuickChatHint">Tip: hold the goose still for half a second to talk to it from any app.</string>
+    <string name="Hygiene">Hygiene</string>
+    <string name="Health">Health</string>
+    <string name="Clean">Bath</string>
+    <string name="Heal">Medicine</string>
+    <string name="CleaningPet">Bath time!</string>
+    <string name="HealingPet">Giving medicine...</string>
 </resources>

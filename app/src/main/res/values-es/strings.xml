@@ -55,4 +55,10 @@
     <string name="OverlayNotificationTalk">Hablar</string>
     <string name="BrainVoice">Leer lo que dice en voz alta</string>
     <string name="BrainQuickChatHint">Tip: mantené apretado al ganso medio segundo para hablarle desde cualquier app.</string>
+    <string name="Hygiene">Higiene</string>
+    <string name="Health">Salud</string>
+    <string name="Clean">Bañar</string>
+    <string name="Heal">Remedio</string>
+    <string name="CleaningPet">¡Hora del baño!</string>
+    <string name="HealingPet">Dándole el remedio...</string>
 </resources>

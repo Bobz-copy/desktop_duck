@@ -16,6 +16,10 @@ public final class PetSnapshot {
     public final float energy;
     /** 0 = triste, 100 = feliz. */
     public final float happiness;
+    /** 0 = sucio, 100 = limpio. */
+    public final float hygiene;
+    /** 0 = muy enfermo, 100 = sano. */
+    public final float health;
 
     /** Rasgos de personalidad, de -100 a 100. */
     public final float playfulness;
@@ -40,6 +44,8 @@ public final class PetSnapshot {
         this.hunger = builder.hunger;
         this.energy = builder.energy;
         this.happiness = builder.happiness;
+        this.hygiene = builder.hygiene;
+        this.health = builder.health;
         this.playfulness = builder.playfulness;
         this.affection = builder.affection;
         this.bravery = builder.bravery;
@@ -66,6 +72,8 @@ public final class PetSnapshot {
         private float hunger = 50f;
         private float energy = 100f;
         private float happiness = 75f;
+        private float hygiene = 100f;
+        private float health = 100f;
         private float playfulness = 0f;
         private float affection = 0f;
         private float bravery = 0f;
@@ -88,6 +96,12 @@ public final class PetSnapshot {
             this.hunger = hunger;
             this.energy = energy;
             this.happiness = happiness;
+            return this;
+        }
+
+        public Builder care(float hygiene, float health) {
+            this.hygiene = hygiene;
+            this.health = health;
             return this;
         }
 

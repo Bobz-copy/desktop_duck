@@ -49,6 +49,16 @@
                 android:value="Mascota virtual dibujada como overlay sobre otras apps" />
         </service>
 
+        <!-- Enciende al ganso tras reiniciar o actualizar, si estaba encendido -->
+        <receiver
+            android:name=".overlay.OverlayAutostartReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
         <!-- Notification Receiver -->
         <receiver
             android:name=".PetNotificationManager$NotificationReceiver"

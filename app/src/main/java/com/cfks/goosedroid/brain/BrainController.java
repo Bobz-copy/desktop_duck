@@ -44,6 +44,7 @@ public final class BrainController {
     private static final float CRITICAL_HUNGER = 90f;
     private static final float CRITICAL_ENERGY = 10f;
     private static final float CRITICAL_HAPPINESS = 10f;
+    private static final float CRITICAL_HYGIENE = 15f;
 
     /** Para pantallas que quieren ver lo que el ganso contesta (chat, prueba). */
     public interface ReplyListener {
@@ -188,6 +189,15 @@ public final class BrainController {
         replyListener = listener;
     }
 
+    /**
+     * El ganso fue a buscar una nota: si piensa con un modelo, que la escriba él.
+     * Con plantillas se usa una de las notas incluidas.
+     */
+    public static void requestNote() {
+        if (brain == null || TemplateBackend.ID.equals(brain.getActiveBackendId())) return;
+        requestThought(BrainTrigger.Kind.NOTE, "");
+    }
+
     public static boolean isRunning() {
         return brain != null;
     }
@@ -255,6 +265,12 @@ public final class BrainController {
             case DRAGGED:
                 recordEvent("tu humano te arrastró por la pantalla");
                 break;
+            case CLEANED:
+                recordEvent("tu humano te bañó");
+                break;
+            case HEALED:
+                recordEvent("tu humano te dio un remedio");
+                break;
             default:
                 break;
         }
@@ -291,6 +307,10 @@ public final class BrainController {
             detail = "cansancio";
         } else if (needs.happiness < CRITICAL_HAPPINESS) {
             detail = "tristeza";
+        } else if (needs.isSick()) {
+            detail = "enfermedad";
+        } else if (needs.hygiene < CRITICAL_HYGIENE) {
+            detail = "suciedad";
         }
         if (detail != null && requestThought(BrainTrigger.Kind.NEED_CRITICAL, detail)) {
             lastNeedAlertMs = now;
@@ -320,6 +340,7 @@ public final class BrainController {
         return PetSnapshot.builder()
                 .petName(PetAppearance.get().petName)
                 .needs(needs.hunger, needs.energy, needs.happiness)
+                .care(needs.hygiene, needs.health)
                 .personality(personality.playfulness, personality.affection,
                         personality.bravery, personality.mischief)
                 .stage(GooseEvolution.getCurrentStage().displayName,
@@ -367,6 +388,13 @@ public final class BrainController {
                 + "\" mood=" + intent.mood + " action=" + intent.action);
         if (replyListener != null) {
             replyListener.onReply(intent, backendId);
+        }
+
+        if (trigger.kind == BrainTrigger.Kind.NOTE) {
+            if (intent.hasSpeech()) {
+                com.cfks.goosedroid.GooseDesktop.GooseNotes.offerText(intent.say);
+            }
+            return;
         }
 
         if (trigger.kind == BrainTrigger.Kind.DIARY) {

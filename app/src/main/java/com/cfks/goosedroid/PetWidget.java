@@ -140,6 +140,8 @@ public class PetWidget extends AppWidgetProvider {
             case TIRED: return "\uD83D\uDE34"; // Sleeping face
             case SAD: return "\uD83D\uDE22"; // Crying face
             case HAPPY: return "\uD83D\uDE0A"; // Smiling face
+            case DIRTY: return "\uD83D\uDCA9"; // Pile of poo
+            case SICK: return "\uD83E\uDD12"; // Face with thermometer
             default: return "\uD83D\uDC23"; // Baby chick
         }
     }
@@ -151,6 +153,8 @@ public class PetWidget extends AppWidgetProvider {
             case TIRED: return "I need sleep...";
             case SAD: return "Play with me!";
             case HAPPY: return "I'm happy!";
+            case DIRTY: return "I need a bath!";
+            case SICK: return "I feel sick...";
             default: return "Doing fine~";
         }
     }

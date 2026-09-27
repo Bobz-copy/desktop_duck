@@ -552,6 +552,15 @@ public class TheGoose implements
         behaviorTree = null;
         BodyColor = DEFAULT_BODY_COLOR;
         GooseVisualEffects.clearAll();
+        GooseNotes.reset();
+    }
+
+    static void onNoteTaskStarted() {
+        GooseNotes.prepare(ctx, GooseLLM.isSpanish());
+    }
+
+    static void onNoteTaskEnded() {
+        GooseNotes.place(screenWidth, screenHeight);
     }
 
     /** La evolución exige una felicidad promedio: se muestrea una vez por minuto. */
@@ -767,6 +776,8 @@ public class TheGoose implements
         // Update physics
         physics.update(ai.isOverrideExtendNeck());
 
+        GooseNotes.update(deltaTime, physics.getPosition());
+
         // Track distance
         trackDistance();
 
@@ -900,6 +911,7 @@ public class TheGoose implements
                 rig.setExpression(GooseRig.Expression.SLEEPY);
                 break;
             case HUNGRY:
+            case SICK:
                 rig.setExpression(GooseRig.Expression.SAD);
                 break;
             default:
@@ -949,6 +961,7 @@ public class TheGoose implements
 
         if (layer == GooseRenderer.Layer.WORLD) {
             GooseVisualEffects.render(canvas, physics.getPosition());
+            GooseNotes.render(canvas);
         }
 
         renderer.render(canvas, layer, physics, rig, touchHandler, ai, petModeEnabled,
@@ -1672,6 +1685,28 @@ public class TheGoose implements
                 MiniGames.startGame(games[(int)(Math.random() * games.length)]);
             }
         }
+    }
+
+    /** Un baño: queda limpio y contento. */
+    public static void startCleaning() {
+        if (ai == null) return;
+        PetNeeds.get().clean();
+        if (physics != null) {
+            GooseVisualEffects.spawnSparkles(physics.getPosition().x, physics.getPosition().y, 12);
+        }
+        com.cfks.goosedroid.brain.BrainController.requestThought(
+                com.cfks.goosedroid.brain.BrainTrigger.Kind.CLEANED, "");
+    }
+
+    /** Un remedio: mejora la salud. */
+    public static void startHealing() {
+        if (ai == null) return;
+        PetNeeds.get().heal();
+        if (physics != null) {
+            GooseVisualEffects.spawnHearts(physics.getPosition().x, physics.getPosition().y, 4);
+        }
+        com.cfks.goosedroid.brain.BrainController.requestThought(
+                com.cfks.goosedroid.brain.BrainTrigger.Kind.HEALED, "");
     }
 
     public static void startSleeping() {

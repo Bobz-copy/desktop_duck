@@ -48,6 +48,10 @@ public class MainActivity extends AppCompatActivity {
     private MaterialButton FeedButton;
     private MaterialButton PlayButton;
     private MaterialButton SleepButton;
+    private ProgressBar HygieneBar;
+    private ProgressBar HealthBar;
+    private MaterialButton CleanButton;
+    private MaterialButton HealButton;
     private MaterialButton CustomizeButton;
     private Handler petStatusHandler;
 
@@ -177,6 +181,22 @@ public class MainActivity extends AppCompatActivity {
         FeedButton = findViewById(R.id.FeedButton);
         PlayButton = findViewById(R.id.PlayButton);
         SleepButton = findViewById(R.id.SleepButton);
+        HygieneBar = findViewById(R.id.HygieneBar);
+        HealthBar = findViewById(R.id.HealthBar);
+        CleanButton = findViewById(R.id.CleanButton);
+        HealButton = findViewById(R.id.HealButton);
+        if (CleanButton != null) {
+            CleanButton.setOnClickListener(v -> {
+                TheGoose.startCleaning();
+                Utils.showToast(this, getText(R.string.CleaningPet));
+            });
+        }
+        if (HealButton != null) {
+            HealButton.setOnClickListener(v -> {
+                TheGoose.startHealing();
+                Utils.showToast(this, getText(R.string.HealingPet));
+            });
+        }
 
         // Set up pet status update handler
         petStatusHandler = new Handler(Looper.getMainLooper());
@@ -260,6 +280,14 @@ public class MainActivity extends AppCompatActivity {
         if (FeedButton != null) FeedButton.setVisibility(visibility);
         if (PlayButton != null) PlayButton.setVisibility(visibility);
         if (SleepButton != null) SleepButton.setVisibility(visibility);
+        if (HygieneBar != null) HygieneBar.setVisibility(visibility);
+        if (HealthBar != null) HealthBar.setVisibility(visibility);
+        if (CleanButton != null) CleanButton.setVisibility(visibility);
+        if (HealButton != null) HealButton.setVisibility(visibility);
+        View hygieneLabel = findViewById(R.id.HygieneLabel);
+        View healthLabel = findViewById(R.id.HealthLabel);
+        if (hygieneLabel != null) hygieneLabel.setVisibility(visibility);
+        if (healthLabel != null) healthLabel.setVisibility(visibility);
         if (CustomizeButton != null) CustomizeButton.setVisibility(visibility);
         if (TouchableSwitch != null) TouchableSwitch.setVisibility(visibility);
 
@@ -329,6 +357,12 @@ public class MainActivity extends AppCompatActivity {
         }
         if (HappinessBar != null) {
             HappinessBar.setProgress((int) PetNeeds.get().happiness);
+        }
+        if (HygieneBar != null) {
+            HygieneBar.setProgress((int) PetNeeds.get().hygiene);
+        }
+        if (HealthBar != null) {
+            HealthBar.setProgress((int) PetNeeds.get().health);
         }
         if (PetStatusText != null) {
             String status = PetPersonality.get().getTitle() + " - " + PetNeeds.get().getMoodStateString();

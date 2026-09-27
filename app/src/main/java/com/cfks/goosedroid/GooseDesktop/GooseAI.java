@@ -1261,6 +1261,7 @@ public class GooseAI {
                     }
                     stageStartTime = Time.time;
                     taskCollectWindowInfo.stage = GooseTasks.CollectWindowTask.Stage.DraggingWindowBack;
+                    pickUpNote(physics, taskCollectWindowInfo.screenDirection);
                 }
                 break;
             case DraggingWindowBack:
@@ -1298,6 +1299,7 @@ public class GooseAI {
                         GooseTasks.TrackMudTask.getDirChangeInterval();
                     taskTrackMudInfo.timeToStopRunning = Time.time + 2f;
                     physics.setTrackMudEndTime(Time.time + 15f);
+                    PetNeeds.get().soil(PetNeeds.MUD_SOIL_AMOUNT);
                     taskTrackMudInfo.stage = GooseTasks.TrackMudTask.Stage.RunningWandering;
                     Sound.PlayMudSquith();
                 }
@@ -1684,9 +1686,34 @@ public class GooseAI {
      * interrumpida arranca la próxima vez con el reloj de la vez anterior y
      * termina en un frame.
      */
+    /** La nota viene del borde por el que salió el ganso. */
+    private static void pickUpNote(GoosePhysics physics,
+                                   GooseTasks.CollectWindowTask.ScreenDirection direction) {
+        float dirX = 0f;
+        float dirY = 0f;
+        switch (direction) {
+            case Left:
+                dirX = -1f;
+                break;
+            case Right:
+                dirX = 1f;
+                break;
+            case Top:
+                dirY = -1f;
+                break;
+            default:
+                break;
+        }
+        GooseNotes.pickUp(dirX, dirY, physics.getPosition());
+    }
+
     private void resetTaskTimers(GooseTasks.GooseTask task) {
         if (task == null) return;
         switch (task) {
+            case CollectWindow_DONOTSET:
+                // Terminó o la interrumpieron: la nota queda donde está
+                TheGoose.onNoteTaskEnded();
+                break;
             case Sleeping:
                 sleepStartTime = 0;
                 break;
@@ -1754,6 +1781,7 @@ public class GooseAI {
                 break;
             case CollectWindow_DONOTSET:
                 taskCollectWindowInfo.screenDirection = setTargetOffscreen(false);
+                TheGoose.onNoteTaskStarted();
                 break;
             case TrackMud:
                 taskTrackMudInfo = new GooseTasks.TrackMudTask();

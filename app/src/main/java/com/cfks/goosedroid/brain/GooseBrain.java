@@ -210,9 +210,8 @@ public class GooseBrain {
         public void onDone(String fullText) {
             if (!isCurrent(requestGeneration)) return;
 
-            int maxLength = trigger.kind == BrainTrigger.Kind.DIARY
-                    ? PromptBuilder.DIARY_MAX_SAY_LENGTH : BrainIntent.MAX_SAY_LENGTH;
-            BrainIntent intent = IntentParser.parse(fullText, maxLength);
+            BrainIntent intent = IntentParser.parse(fullText,
+                    PromptBuilder.maxSayLength(trigger));
             if (intent != null && PromptBuilder.isToneExample(intent.say)) {
                 // Un ejemplo copiado no es una frase propia
                 intent = new BrainIntent("", intent.mood, intent.action, intent.remember);

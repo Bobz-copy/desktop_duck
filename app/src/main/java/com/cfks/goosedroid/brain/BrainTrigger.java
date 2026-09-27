@@ -13,6 +13,10 @@ public final class BrainTrigger {
         FED(true),
         /** El humano jugó con él. */
         PLAYED(true),
+        /** El humano lo bañó. */
+        CLEANED(true),
+        /** El humano le dio un remedio. */
+        HEALED(true),
         /** El humano lo agarró y lo arrastró. */
         DRAGGED(true),
         /** Una necesidad llegó a un nivel crítico. */
@@ -28,7 +32,9 @@ public final class BrainTrigger {
         /** El humano volvió después de un rato. El detalle dice cuánto. */
         GREETING(false),
         /** El humano está probando la configuración del cerebro. */
-        TEST(true);
+        TEST(true),
+        /** El ganso le trae una nota al humano: escribir qué dice. */
+        NOTE(false);
 
         private final boolean isUserInitiated;
 

@@ -104,6 +104,74 @@ public class PetNeedsTest {
         assertEquals(expectedDecay, happinessBefore - needs.happiness, 0.05f);
     }
 
+    // ============== HIGIENE Y SALUD ==============
+
+    @Test
+    public void hygiene_takesADayToRunOut() {
+        needs.update(12 * ONE_HOUR);
+        assertEquals(50f, needs.hygiene, 0.5f);
+    }
+
+    @Test
+    public void soilAndClean() {
+        needs.soil(PetNeeds.MUD_SOIL_AMOUNT);
+        assertEquals(100f - PetNeeds.MUD_SOIL_AMOUNT, needs.hygiene, 0.01f);
+
+        needs.happiness = 50f;
+        needs.clean();
+        assertEquals(100f, needs.hygiene, 0.01f);
+        assertTrue(needs.happiness > 50f);
+    }
+
+    @Test
+    public void health_dropsWhenNeglectedAndRecoversWhenCaredFor() {
+        needs.hunger = 95f;
+        needs.update(ONE_HOUR);
+        float afterNeglect = needs.health;
+        assertTrue(afterNeglect < 100f);
+
+        needs.hunger = 20f;
+        needs.energy = 90f;
+        needs.happiness = 80f;
+        needs.update(ONE_HOUR);
+        assertTrue(needs.health > afterNeglect);
+    }
+
+    @Test
+    public void sickness_isTheMostImportantMood() {
+        needs.health = PetNeeds.SICK_THRESHOLD - 1f;
+        needs.hunger = 95f;
+
+        assertTrue(needs.isSick());
+        assertEquals(PetNeeds.MoodState.SICK, needs.getMoodState());
+        assertTrue(needs.needsUrgentAttention());
+
+        needs.heal();
+        assertFalse(needs.isSick());
+    }
+
+    @Test
+    public void dirtyMood_whenHygieneIsLow() {
+        needs.hygiene = 20f;
+        assertEquals(PetNeeds.MoodState.DIRTY, needs.getMoodState());
+    }
+
+    @Test
+    public void offline_hygieneHasAFloorAndHealthDoesNotChange() {
+        needs.health = 70f;
+        needs.applyOfflineTime(48 * ONE_HOUR);
+
+        assertEquals(PetNeeds.OFFLINE_MIN_HYGIENE, needs.hygiene, 0.01f);
+        assertEquals(70f, needs.health, 0.01f);
+    }
+
+    @Test
+    public void loadCare_clampsValues() {
+        needs.loadCare(150f, -20f);
+        assertEquals(100f, needs.hygiene, 0.01f);
+        assertEquals(0f, needs.health, 0.01f);
+    }
+
     // ============== ESCALA DE TAMAGOTCHI ==============
 
     @Test

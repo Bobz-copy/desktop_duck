@@ -95,6 +95,22 @@ public class GooseRenderer {
         }
     }
 
+    /**
+     * Cachea un BlurMaskFilter (inmutable) y lo recrea solo si cambia el radio.
+     */
+    private static final class BlurCache {
+        private float radius;
+        private BlurMaskFilter filter;
+
+        BlurMaskFilter get(float newRadius) {
+            if (filter == null || Float.compare(radius, newRadius) != 0) {
+                radius = newRadius;
+                filter = new BlurMaskFilter(newRadius, BlurMaskFilter.Blur.NORMAL);
+            }
+            return filter;
+        }
+    }
+
     // ============== CONSTANTS ==============
 
     private static final int MAX_PARTICLES = 100;
@@ -103,6 +119,18 @@ public class GooseRenderer {
     private static final float TRAIL_FADE_TIME = 0.5f;
     private static final float SPEED_LINE_THRESHOLD = 150f;
     private static final float GLOW_PULSE_SPEED = 3f;
+
+    // Colores y posiciones constantes de gradientes (nunca se modifican)
+    private static final float[] GRADIENT_STOPS_40 = {0f, 0.4f, 1f};
+    private static final float[] GRADIENT_STOPS_50 = {0f, 0.5f, 1f};
+    private static final float[] GRADIENT_STOPS_60 = {0f, 0.6f, 1f};
+    private static final float[] GRADIENT_STOPS_QUARTERS = {0f, 0.25f, 0.5f, 0.75f, 1f};
+    private static final int[] SHADOW_GRADIENT_COLORS = {0x44000000, 0x22000000, 0x00000000};
+    private static final int[] SCLERA_GRADIENT_COLORS = {0xFFF8F8F8, 0xFFFFFFFF, 0xFFFFFFF8};
+    private static final int[] IRIS_GRADIENT_COLORS = {0xFF5A5A5A, 0xFF3A3A3A, 0xFF2A2A2A};
+    private static final int[] SHINE_GRADIENT_COLORS = {0xDDFFFFFF, 0x88FFFFFF, 0x00FFFFFF};
+    private static final int[] SHINE2_GRADIENT_COLORS = {0x99FFFFFF, 0x00FFFFFF};
+    private static final int[] BANNER_GRADIENT_COLORS = {0xFFFFD700, 0xFFFFA500, 0xFFFF8C00};
 
     // ============== STATE ==============
 
@@ -659,6 +687,10 @@ public class GooseRenderer {
 
     // ============== STATUS INDICATORS ==============
 
+    // Objetos reutilizables de los iconos (se reconfiguran en cada frame)
+    private final Path energyBoltPath = new Path();
+    private final RectF happinessMouthRect = new RectF();
+
     private void renderStatusIndicators(Canvas canvas, Vector2 position) {
         float hunger = PetNeeds.get().hunger;
         float energy = PetNeeds.get().energy;
@@ -718,7 +750,8 @@ public class GooseRenderer {
         indicatorPaint.setColor(0xFFFFD700);
         indicatorPaint.setStyle(Paint.Style.FILL);
 
-        Path bolt = new Path();
+        Path bolt = energyBoltPath;
+        bolt.rewind();
         bolt.moveTo(x + size * 0.2f, y - size);
         bolt.lineTo(x - size * 0.3f, y);
         bolt.lineTo(x + size * 0.1f, y);
@@ -749,8 +782,8 @@ public class GooseRenderer {
 
         // Sad mouth
         indicatorPaint.setStyle(Paint.Style.STROKE);
-        RectF mouthRect = new RectF(x - size * 0.4f, y + size * 0.1f, x + size * 0.4f, y + size * 0.6f);
-        canvas.drawArc(mouthRect, 200, 140, false, indicatorPaint);
+        happinessMouthRect.set(x - size * 0.4f, y + size * 0.1f, x + size * 0.4f, y + size * 0.6f);
+        canvas.drawArc(happinessMouthRect, 200, 140, false, indicatorPaint);
     }
 
     // ============== BODY RENDERING ==============
@@ -766,6 +799,44 @@ public class GooseRenderer {
 
     // Cached direction for shading
     private Vector2 lastForward = Vector2.zero;
+
+    // Objetos de dibujo reutilizables: se crean una vez y se reconfiguran en
+    // cada frame para no generar basura (el render corre en un solo hilo)
+    private final Paint footFillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint footOutlinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint footWebPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Path footPath = new Path();
+    private final Paint bodyShadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final RectF bodyShadowRect = new RectF();
+    private final Path bodyPath = new Path();
+    private final Paint bellyPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Path bellyPath = new Path();
+    private final Path neckPath = new Path();
+    private final Path headPath = new Path();
+    private final Paint blushPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Path upperBeakPath = new Path();
+    private final Path lowerBeakPath = new Path();
+    private final Paint beakFillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint beakOutlinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint nostrilPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final RectF nostrilRect = new RectF();
+    private final Paint mouthInteriorPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Path mouthPath = new Path();
+    private final Paint tonguePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final RectF tongueRect = new RectF();
+    private final Paint wingFeatherPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Path wingFeatherPath = new Path();
+    private final Paint covertPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Path covertPath = new Path();
+    private final Paint wingOutlinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint tailFeatherPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Path tailFeatherPath = new Path();
+    private final Paint texturePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Path featherLinePath = new Path();
+    private final Paint rimPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final BlurCache rimBlur = new BlurCache();
+    private final BlurCache ambientOcclusionBlur = new BlurCache();
+    private final Paint mudPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     private void initFeatherPaint() {
         if (featherPaint == null) {
@@ -808,7 +879,7 @@ public class GooseRenderer {
      * Render a single webbed foot.
      */
     private void renderWebFoot(Canvas canvas, Vector2 pos, float direction, boolean isRight) {
-        Paint footPaint = new Paint();
+        Paint footPaint = footFillPaint;
         footPaint.setColor(footColor);
         footPaint.setAntiAlias(true);
         footPaint.setStyle(Paint.Style.FILL);
@@ -821,7 +892,8 @@ public class GooseRenderer {
         canvas.rotate(footAngle - 90);
 
         // Main foot pad
-        Path foot = new Path();
+        Path foot = footPath;
+        foot.rewind();
 
         // Three toes with webbing
         float toeLength = 8f * scale;
@@ -860,7 +932,7 @@ public class GooseRenderer {
         foot.close();
 
         // Draw foot outline
-        Paint outlinePaint = new Paint();
+        Paint outlinePaint = footOutlinePaint;
         outlinePaint.setColor(darkenColor(footColor, 0.7f));
         outlinePaint.setAntiAlias(true);
         outlinePaint.setStyle(Paint.Style.STROKE);
@@ -871,7 +943,7 @@ public class GooseRenderer {
         canvas.drawPath(foot, footPaint);
 
         // Add subtle webbing texture
-        Paint webPaint = new Paint();
+        Paint webPaint = footWebPaint;
         webPaint.setColor(darkenColor(footColor, 0.85f));
         webPaint.setAntiAlias(true);
         webPaint.setStyle(Paint.Style.STROKE);
@@ -888,25 +960,26 @@ public class GooseRenderer {
         if (!showShadow) return;
 
         // More detailed elliptical shadow
-        Paint shadowPaint = new Paint();
+        Paint shadowPaint = bodyShadowPaint;
         shadowPaint.setAntiAlias(true);
 
         // Create gradient shadow
         RadialGradient shadowGradient = new RadialGradient(
             position.x, position.y,
             Math.max(1f, 25f * TheGoose.DrawScale),
-            new int[]{0x44000000, 0x22000000, 0x00000000},
-            new float[]{0f, 0.6f, 1f},
+            SHADOW_GRADIENT_COLORS,
+            GRADIENT_STOPS_60,
             Shader.TileMode.CLAMP
         );
         shadowPaint.setShader(shadowGradient);
 
-        canvas.drawOval(new RectF(
+        bodyShadowRect.set(
             position.x - 22 * TheGoose.DrawScale,
             position.y - 12 * TheGoose.DrawScale,
             position.x + 22 * TheGoose.DrawScale,
             position.y + 12 * TheGoose.DrawScale
-        ), shadowPaint);
+        );
+        canvas.drawOval(bodyShadowRect, shadowPaint);
     }
 
     /**
@@ -948,7 +1021,7 @@ public class GooseRenderer {
         initShadingPaints();
 
         // Create body path for smooth oval shape
-        Path bodyPath = new Path();
+        bodyPath.rewind();
 
         // Body ellipse parameters
         float bodyLength = 24f * scale;
@@ -990,7 +1063,7 @@ public class GooseRenderer {
             bodyFront.x, bodyFront.y,
             bodyBack.x, bodyBack.y,
             new int[]{bodyColor, darkenColor(bodyColor, 0.92f), darkenColor(bodyColor, 0.85f)},
-            new float[]{0f, 0.6f, 1f},
+            GRADIENT_STOPS_60,
             Shader.TileMode.CLAMP
         );
 
@@ -999,7 +1072,7 @@ public class GooseRenderer {
             rig.bodyCenter.x, rig.bodyCenter.y - 3f * scale,
             bodyLength * 0.7f,
             new int[]{lightenColor(bodyColor, 1.05f), bodyColor, darkenColor(bodyColor, 0.9f)},
-            new float[]{0f, 0.5f, 1f},
+            GRADIENT_STOPS_50,
             Shader.TileMode.CLAMP
         );
 
@@ -1027,11 +1100,10 @@ public class GooseRenderer {
         renderFeatherTexture(canvas, rig.bodyCenter, forward, bodyLength * 0.8f, bodyWidth * 0.7f, scale);
 
         // Underbody (belly) - slightly darker
-        Paint bellyPaint = new Paint();
         bellyPaint.setColor(darkenColor(bodyColor, 0.95f));
         bellyPaint.setAntiAlias(true);
 
-        Path bellyPath = new Path();
+        bellyPath.rewind();
         Vector2 bellyCenter = Vector2.add(rig.underbodyCenter, Vector2.multiply(new Vector2(0, 1), 2f * scale));
         float bellyLength = 16f * scale;
         float bellyWidth = 10f * scale;
@@ -1061,7 +1133,7 @@ public class GooseRenderer {
         initShadingPaints();
 
         // Create curved neck path
-        Path neckPath = new Path();
+        neckPath.rewind();
 
         float neckWidth = 7f * scale;
         Vector2 right = new Vector2(-forward.y, forward.x);
@@ -1091,7 +1163,7 @@ public class GooseRenderer {
             neckBaseLeft.x, neckBaseLeft.y,
             neckBaseRight.x, neckBaseRight.y,
             new int[]{darkenColor(bodyColor, 0.88f), bodyColor, lightenColor(bodyColor, 1.02f), bodyColor, darkenColor(bodyColor, 0.88f)},
-            new float[]{0f, 0.25f, 0.5f, 0.75f, 1f},
+            GRADIENT_STOPS_QUARTERS,
             Shader.TileMode.CLAMP
         );
 
@@ -1121,7 +1193,7 @@ public class GooseRenderer {
         initShadingPaints();
 
         // Head is more oval/egg shaped
-        Path headPath = new Path();
+        headPath.rewind();
 
         float headLength = 12f * scale;
         float headWidth = 8f * scale;
@@ -1150,7 +1222,7 @@ public class GooseRenderer {
             headCenter.y - forward.y * headLength * 0.1f - 2f * scale,
             headLength * 0.8f,
             new int[]{lightenColor(bodyColor, 1.05f), bodyColor, darkenColor(bodyColor, 0.9f)},
-            new float[]{0f, 0.6f, 1f},
+            GRADIENT_STOPS_60,
             Shader.TileMode.CLAMP
         );
 
@@ -1202,7 +1274,6 @@ public class GooseRenderer {
         int blushBlue = (int)(180 - intensity * 50);
         int blushColor = Color.argb(blushAlpha, blushRed, blushGreen, blushBlue);
 
-        Paint blushPaint = new Paint();
         blushPaint.setAntiAlias(true);
 
         // Create radial gradient for soft blush
@@ -1252,7 +1323,7 @@ public class GooseRenderer {
         Vector2 beakTip = Vector2.add(beakStart, Vector2.multiply(forward, beakLength * (1f - openAmount * 0.05f)));
 
         // === UPPER BEAK ===
-        Path upperBeakPath = new Path();
+        upperBeakPath.rewind();
         Vector2 upperStart = Vector2.add(beakStart, Vector2.multiply(up, beakHeight * 0.3f));
         Vector2 upperMid = Vector2.add(
             Vector2.add(beakStart, Vector2.multiply(forward, beakLength * 0.6f)),
@@ -1270,11 +1341,11 @@ public class GooseRenderer {
             upperStart.x, upperStart.y,
             upperTip.x, upperTip.y,
             new int[]{lightenColor(mouthColor, 1.1f), mouthColor, darkenColor(mouthColor, 0.85f)},
-            new float[]{0f, 0.4f, 1f},
+            GRADIENT_STOPS_40,
             Shader.TileMode.CLAMP
         );
 
-        Paint beakFill = new Paint();
+        Paint beakFill = beakFillPaint;
         beakFill.setAntiAlias(true);
         beakFill.setStyle(Paint.Style.FILL);
         beakFill.setShader(upperGradient);
@@ -1282,7 +1353,7 @@ public class GooseRenderer {
         beakFill.setShader(null);
 
         // === LOWER BEAK (animated) ===
-        Path lowerBeakPath = new Path();
+        lowerBeakPath.rewind();
 
         // Lower beak rotates down when mouth opens
         float lowerAngleRad = (float)Math.toRadians(openAngle);
@@ -1317,7 +1388,7 @@ public class GooseRenderer {
         beakFill.setShader(null);
 
         // Beak outlines
-        Paint beakOutline = new Paint();
+        Paint beakOutline = beakOutlinePaint;
         beakOutline.setColor(darkenColor(mouthColor, 0.65f));
         beakOutline.setAntiAlias(true);
         beakOutline.setStyle(Paint.Style.STROKE);
@@ -1326,17 +1397,17 @@ public class GooseRenderer {
         canvas.drawPath(lowerBeakPath, beakOutline);
 
         // Nostril
-        Paint nostrilPaint = new Paint();
         nostrilPaint.setColor(darkenColor(mouthColor, 0.5f));
         nostrilPaint.setAntiAlias(true);
         Vector2 nostrilPos = Vector2.add(beakStart, Vector2.multiply(forward, beakLength * 0.35f));
         nostrilPos = Vector2.add(nostrilPos, Vector2.multiply(up, beakHeight * 0.15f));
-        canvas.drawOval(new RectF(
+        nostrilRect.set(
             nostrilPos.x - 1.2f * scale,
             nostrilPos.y - 0.8f * scale,
             nostrilPos.x + 1.2f * scale,
             nostrilPos.y + 0.8f * scale
-        ), nostrilPaint);
+        );
+        canvas.drawOval(nostrilRect, nostrilPaint);
 
         // Specular highlight on beak tip (wet look)
         renderSpecularHighlight(canvas,
@@ -1345,11 +1416,11 @@ public class GooseRenderer {
 
         // Mouth interior when open
         if (openAmount > 0.1f) {
-            Paint mouthInterior = new Paint();
+            Paint mouthInterior = mouthInteriorPaint;
             mouthInterior.setColor(0xFF8B0000); // Dark red
             mouthInterior.setAntiAlias(true);
 
-            Path mouthPath = new Path();
+            mouthPath.rewind();
             mouthPath.moveTo(beakStart.x, beakStart.y);
             float mouthDepth = beakLength * 0.4f * openAmount;
             Vector2 mouthBack = Vector2.add(beakStart, Vector2.multiply(forward, mouthDepth));
@@ -1360,16 +1431,16 @@ public class GooseRenderer {
 
             // Tongue hint
             if (openAmount > 0.2f) {
-                Paint tonguePaint = new Paint();
                 tonguePaint.setColor(0xFFFF6B6B);
                 tonguePaint.setAntiAlias(true);
                 Vector2 tonguePos = Vector2.add(beakStart, Vector2.multiply(forward, beakLength * 0.2f));
-                canvas.drawOval(new RectF(
+                tongueRect.set(
                     tonguePos.x - 2f * scale,
                     tonguePos.y - 1f * scale,
                     tonguePos.x + 2f * scale,
                     tonguePos.y + 1.5f * scale
-                ), tonguePaint);
+                );
+                canvas.drawOval(tongueRect, tonguePaint);
             }
         }
     }
@@ -1421,7 +1492,9 @@ public class GooseRenderer {
 
         // === Render individual primary feathers (8-10 feathers) ===
         int featherCount = 8;
-        Paint featherPaint = new Paint();
+        Paint featherPaint = wingFeatherPaint;
+        // reset(): la primera pluma debe arrancar con el color por defecto, como un Paint nuevo
+        featherPaint.reset();
         featherPaint.setAntiAlias(true);
 
         for (int i = featherCount - 1; i >= 0; i--) {
@@ -1437,7 +1510,8 @@ public class GooseRenderer {
             featherDir = Vector2.Normalize(featherDir);
 
             // Create feather path with barbs
-            Path featherPath = new Path();
+            Path featherPath = wingFeatherPath;
+            featherPath.rewind();
             float featherWidth = (3f + (1 - t) * 3f) * scale;
 
             // Perpendicular for feather width
@@ -1465,7 +1539,7 @@ public class GooseRenderer {
                 featherBase.x, featherBase.y,
                 featherTip.x, featherTip.y,
                 new int[]{lightenColor(wingColor, 1.02f), wingColor, darkenColor(wingColor, 0.92f)},
-                new float[]{0f, 0.5f, 1f},
+                GRADIENT_STOPS_50,
                 Shader.TileMode.CLAMP
             );
 
@@ -1497,12 +1571,11 @@ public class GooseRenderer {
         }
 
         // === Wing covert feathers (smaller, covering base) ===
-        Paint covertPaint = new Paint();
         covertPaint.setAntiAlias(true);
         covertPaint.setColor(wingColor);
         covertPaint.setStyle(Paint.Style.FILL);
 
-        Path covertPath = new Path();
+        covertPath.rewind();
         covertPath.moveTo(wingPos.x, wingPos.y);
         covertPath.quadTo(
             wingPos.x + wingDir.x * wingLength * 0.3f - forward.x * wingWidth * 0.2f,
@@ -1530,7 +1603,7 @@ public class GooseRenderer {
         covertPaint.setShader(null);
 
         // Wing outline
-        Paint wingOutline = new Paint();
+        Paint wingOutline = wingOutlinePaint;
         wingOutline.setColor(outlineColor);
         wingOutline.setAntiAlias(true);
         wingOutline.setStyle(Paint.Style.STROKE);
@@ -1566,7 +1639,9 @@ public class GooseRenderer {
         int featherCount = 7;
         float spreadAngle = 35f;
 
-        Paint featherPaint = new Paint();
+        Paint featherPaint = tailFeatherPaint;
+        // reset(): la primera pluma debe arrancar con el color por defecto, como un Paint nuevo
+        featherPaint.reset();
         featherPaint.setAntiAlias(true);
 
         // Render feathers from outside to center
@@ -1591,7 +1666,8 @@ public class GooseRenderer {
             float featherWidth = (2.5f - distFromCenter * 0.2f) * scale;
 
             // Create feather path
-            Path featherPath = new Path();
+            Path featherPath = tailFeatherPath;
+            featherPath.rewind();
 
             // Base of feather
             Vector2 baseLeft = Vector2.subtract(tailBase, Vector2.multiply(featherPerp, featherWidth * 0.3f));
@@ -1613,7 +1689,7 @@ public class GooseRenderer {
                 tailBase.x, tailBase.y,
                 featherTip.x, featherTip.y,
                 new int[]{bodyColor, darkenColor(bodyColor, 0.95f), darkenColor(bodyColor, 0.88f)},
-                new float[]{0f, 0.6f, 1f},
+                GRADIENT_STOPS_60,
                 Shader.TileMode.CLAMP
             );
 
@@ -1663,7 +1739,6 @@ public class GooseRenderer {
      */
     private void renderFeatherTexture(Canvas canvas, Vector2 center, Vector2 forward,
                                        float length, float width, float scale) {
-        Paint texturePaint = new Paint();
         texturePaint.setColor(darkenColor(bodyColor, 0.92f));
         texturePaint.setAntiAlias(true);
         texturePaint.setStrokeWidth(0.5f * scale);
@@ -1688,7 +1763,8 @@ public class GooseRenderer {
                 )
             );
 
-            Path featherLine = new Path();
+            Path featherLine = featherLinePath;
+            featherLine.rewind();
             featherLine.moveTo(lineStart.x, lineStart.y);
             featherLine.quadTo(center.x, center.y - 2f * scale * t, lineEnd.x, lineEnd.y);
             canvas.drawPath(featherLine, texturePaint);
@@ -1722,12 +1798,11 @@ public class GooseRenderer {
      */
     private void renderRimLight(Canvas canvas, Path path, Vector2 center, float size, float scale) {
         // Create rim light paint with blur
-        Paint rimPaint = new Paint();
         rimPaint.setAntiAlias(true);
         rimPaint.setStyle(Paint.Style.STROKE);
         rimPaint.setStrokeWidth(4f * scale);
         rimPaint.setColor(0x66FFFFFF); // White with 40% alpha
-        rimPaint.setMaskFilter(new BlurMaskFilter(8f * scale, BlurMaskFilter.Blur.NORMAL));
+        rimPaint.setMaskFilter(rimBlur.get(8f * scale));
 
         // Draw rim light slightly offset for top-light effect
         canvas.save();
@@ -1741,7 +1816,7 @@ public class GooseRenderer {
      */
     private void renderAmbientOcclusion(Canvas canvas, Vector2 position, float radius, float scale) {
         ambientOcclusionPaint.setColor(0x22000000); // Very subtle black
-        ambientOcclusionPaint.setMaskFilter(new BlurMaskFilter(4f * scale, BlurMaskFilter.Blur.NORMAL));
+        ambientOcclusionPaint.setMaskFilter(ambientOcclusionBlur.get(4f * scale));
         canvas.drawCircle(position.x, position.y + 2f * scale, radius * 0.8f, ambientOcclusionPaint);
         ambientOcclusionPaint.setMaskFilter(null);
     }
@@ -1825,7 +1900,6 @@ public class GooseRenderer {
 
     private void renderFootprints(Canvas canvas, GoosePhysics physics) {
         FootMark[] footMarks = physics.getFootMarks();
-        Paint mudPaint = new Paint();
         mudPaint.setColor(0xFF8B4513);
         mudPaint.setAntiAlias(true);
 
@@ -1844,6 +1918,28 @@ public class GooseRenderer {
     // Eye tracking state
     private Vector2 eyeLookTarget = null;
     private float eyeLookTimer = 0f;
+
+    // Objetos reutilizables de ojos, cejas y lágrimas (se reconfiguran en cada frame)
+    private final Paint closedEyePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final RectF eyeRect = new RectF();
+    private final Paint scleraPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint eyeOutlinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint irisPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint limbusRingPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint pupilPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint shinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint fresnelRimPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final BlurCache eyeRimBlur = new BlurCache();
+    private final Path closedEyePath = new Path();
+    private final Paint browPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Path leftBrowPath = new Path();
+    private final Path rightBrowPath = new Path();
+    private final Paint tearPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Path leftTearPath = new Path();
+    private final Path rightTearPath = new Path();
+    private final Paint wetShinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final RectF wetShineRect = new RectF();
+    private final Paint heartEyePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     /**
      * Set where the eyes should look (for tracking user touch, etc.)
@@ -1878,7 +1974,7 @@ public class GooseRenderer {
         // Draw eyes
         if (eyeVerticalScale < 0.1f || rig.isBlinking()) {
             // Eyes closed - draw curved line (happy closed eyes)
-            Paint closedPaint = new Paint();
+            Paint closedPaint = closedEyePaint;
             closedPaint.setColor(eyeColor);
             closedPaint.setAntiAlias(true);
             closedPaint.setStyle(Paint.Style.STROKE);
@@ -1923,7 +2019,7 @@ public class GooseRenderer {
                                     float scale, GooseRig.Expression expr, boolean isRight) {
         initShadingPaints();
 
-        RectF eyeRect = new RectF(
+        eyeRect.set(
             pos.x - radius,
             pos.y - radius * vScale,
             pos.x + radius,
@@ -1935,12 +2031,11 @@ public class GooseRenderer {
         RadialGradient fresnelGradient = new RadialGradient(
             pos.x, pos.y,
             radius,
-            new int[]{0xFFF8F8F8, 0xFFFFFFFF, 0xFFFFFFF8},
-            new float[]{0f, 0.6f, 1f},
+            SCLERA_GRADIENT_COLORS,
+            GRADIENT_STOPS_60,
             Shader.TileMode.CLAMP
         );
 
-        Paint scleraPaint = new Paint();
         scleraPaint.setAntiAlias(true);
         scleraPaint.setStyle(Paint.Style.FILL);
         scleraPaint.setShader(fresnelGradient);
@@ -1948,7 +2043,7 @@ public class GooseRenderer {
         scleraPaint.setShader(null);
 
         // Eye outline with slight gradient
-        Paint outlinePaint = new Paint();
+        Paint outlinePaint = eyeOutlinePaint;
         outlinePaint.setColor(darkenColor(eyeColor, 0.4f));
         outlinePaint.setAntiAlias(true);
         outlinePaint.setStyle(Paint.Style.STROKE);
@@ -1985,19 +2080,18 @@ public class GooseRenderer {
             irisX - irisRadius * 0.2f,
             irisY - irisRadius * 0.2f,
             irisRadius * 1.2f,
-            new int[]{0xFF5A5A5A, 0xFF3A3A3A, 0xFF2A2A2A},
-            new float[]{0f, 0.5f, 1f},
+            IRIS_GRADIENT_COLORS,
+            GRADIENT_STOPS_50,
             Shader.TileMode.CLAMP
         );
 
-        Paint irisPaint = new Paint();
         irisPaint.setAntiAlias(true);
         irisPaint.setShader(irisGradient);
         canvas.drawCircle(irisX, irisY, irisRadius, irisPaint);
         irisPaint.setShader(null);
 
         // Iris ring (limbal ring) for more realistic look
-        Paint limbusRing = new Paint();
+        Paint limbusRing = limbusRingPaint;
         limbusRing.setAntiAlias(true);
         limbusRing.setStyle(Paint.Style.STROKE);
         limbusRing.setStrokeWidth(1f * scale);
@@ -2024,14 +2118,12 @@ public class GooseRenderer {
             Shader.TileMode.CLAMP
         );
 
-        Paint pupilPaint = new Paint();
         pupilPaint.setAntiAlias(true);
         pupilPaint.setShader(pupilGradient);
         canvas.drawCircle(irisX, irisY, pupilRadius, pupilPaint);
         pupilPaint.setShader(null);
 
         // === SPECULAR HIGHLIGHTS (multiple for realism) ===
-        Paint shinePaint = new Paint();
         shinePaint.setAntiAlias(true);
 
         // Primary catchlight (larger, top-left)
@@ -2041,8 +2133,8 @@ public class GooseRenderer {
 
         RadialGradient shineGradient = new RadialGradient(
             shineX, shineY, shineRadius,
-            new int[]{0xDDFFFFFF, 0x88FFFFFF, 0x00FFFFFF},
-            new float[]{0f, 0.5f, 1f},
+            SHINE_GRADIENT_COLORS,
+            GRADIENT_STOPS_50,
             Shader.TileMode.CLAMP
         );
         shinePaint.setShader(shineGradient);
@@ -2055,7 +2147,7 @@ public class GooseRenderer {
 
         RadialGradient shine2Gradient = new RadialGradient(
             shine2X, shine2Y, shine2Radius,
-            new int[]{0x99FFFFFF, 0x00FFFFFF},
+            SHINE2_GRADIENT_COLORS,
             null,
             Shader.TileMode.CLAMP
         );
@@ -2065,12 +2157,12 @@ public class GooseRenderer {
         shinePaint.setShader(null);
 
         // === Subtle Fresnel rim on eye edge ===
-        Paint fresnelRim = new Paint();
+        Paint fresnelRim = fresnelRimPaint;
         fresnelRim.setAntiAlias(true);
         fresnelRim.setStyle(Paint.Style.STROKE);
         fresnelRim.setStrokeWidth(2f * scale);
         fresnelRim.setColor(0x22FFFFFF);
-        fresnelRim.setMaskFilter(new BlurMaskFilter(2f * scale, BlurMaskFilter.Blur.NORMAL));
+        fresnelRim.setMaskFilter(eyeRimBlur.get(2f * scale));
         canvas.drawOval(eyeRect, fresnelRim);
         fresnelRim.setMaskFilter(null);
     }
@@ -2079,7 +2171,8 @@ public class GooseRenderer {
      * Draw happy closed eye (^_^).
      */
     private void drawHappyClosedEye(Canvas canvas, Vector2 pos, float radius, Paint paint) {
-        Path eyePath = new Path();
+        Path eyePath = closedEyePath;
+        eyePath.rewind();
         eyePath.moveTo(pos.x - radius, pos.y + radius * 0.3f);
         eyePath.quadTo(pos.x, pos.y - radius * 0.5f, pos.x + radius, pos.y + radius * 0.3f);
         canvas.drawPath(eyePath, paint);
@@ -2096,7 +2189,6 @@ public class GooseRenderer {
         // Skip if nearly neutral
         if (expr == GooseRig.Expression.NEUTRAL && Math.abs(browCurve) < 0.1f) return;
 
-        Paint browPaint = new Paint();
         browPaint.setColor(darkenColor(bodyColor, 0.55f));
         browPaint.setAntiAlias(true);
         browPaint.setStyle(Paint.Style.STROKE);
@@ -2143,7 +2235,8 @@ public class GooseRenderer {
         innerRaise += curveAmount;
 
         // Draw curved eyebrows using bezier
-        Path leftBrow = new Path();
+        Path leftBrow = leftBrowPath;
+        leftBrow.rewind();
         leftBrow.moveTo(leftBrowStart.x, leftBrowStart.y + outerRaise);
         leftBrow.quadTo(
             (leftBrowStart.x + leftBrowEnd.x) / 2,
@@ -2153,7 +2246,8 @@ public class GooseRenderer {
         );
         canvas.drawPath(leftBrow, browPaint);
 
-        Path rightBrow = new Path();
+        Path rightBrow = rightBrowPath;
+        rightBrow.rewind();
         rightBrow.moveTo(rightBrowStart.x, rightBrowStart.y + outerRaise);
         rightBrow.quadTo(
             (rightBrowStart.x + rightBrowEnd.x) / 2,
@@ -2176,7 +2270,6 @@ public class GooseRenderer {
         float tearAmount = rig.getTearAmount();
         if (tearAmount < 0.1f) return;
 
-        Paint tearPaint = new Paint();
         tearPaint.setAntiAlias(true);
 
         // Tear color with gradient
@@ -2213,14 +2306,15 @@ public class GooseRenderer {
                 Color.argb((int)(tearAlpha * 150), 135, 206, 250),
                 Color.argb(0, 135, 206, 250)
             },
-            new float[]{0f, 0.5f, 1f},
+            GRADIENT_STOPS_50,
             Shader.TileMode.CLAMP
         );
 
         tearPaint.setShader(tearGradient);
 
         // Draw tear drop shape (elongated oval)
-        Path tearPath = new Path();
+        Path tearPath = leftTearPath;
+        tearPath.rewind();
         tearPath.moveTo(leftTearPos.x, leftTearPos.y - tearSize);
         tearPath.quadTo(
             leftTearPos.x + tearSize * 0.8f,
@@ -2246,12 +2340,12 @@ public class GooseRenderer {
                 Color.argb((int)(rightAlpha * 150), 135, 206, 250),
                 Color.argb(0, 135, 206, 250)
             },
-            new float[]{0f, 0.5f, 1f},
+            GRADIENT_STOPS_50,
             Shader.TileMode.CLAMP
         );
         tearPaint.setShader(rightTearGrad);
 
-        Path rightTearPath = new Path();
+        rightTearPath.rewind();
         rightTearPath.moveTo(rightTearPos.x, rightTearPos.y - tearSize);
         rightTearPath.quadTo(
             rightTearPos.x + tearSize * 0.8f,
@@ -2270,25 +2364,27 @@ public class GooseRenderer {
         tearPaint.setShader(null);
 
         // Wet shine under eyes
-        Paint wetPaint = new Paint();
+        Paint wetPaint = wetShinePaint;
         wetPaint.setAntiAlias(true);
         wetPaint.setColor(Color.argb((int)(tearAmount * 60), 255, 255, 255));
-        canvas.drawOval(new RectF(
+        wetShineRect.set(
             rig.leftEyePos.x - 3f * scale,
             rig.leftEyePos.y + 3f * scale,
             rig.leftEyePos.x + 3f * scale,
             rig.leftEyePos.y + 5f * scale
-        ), wetPaint);
-        canvas.drawOval(new RectF(
+        );
+        canvas.drawOval(wetShineRect, wetPaint);
+        wetShineRect.set(
             rig.rightEyePos.x - 3f * scale,
             rig.rightEyePos.y + 3f * scale,
             rig.rightEyePos.x + 3f * scale,
             rig.rightEyePos.y + 5f * scale
-        ), wetPaint);
+        );
+        canvas.drawOval(wetShineRect, wetPaint);
     }
 
     private void renderHeartEyes(Canvas canvas, GooseRig rig) {
-        Paint heartPaint = new Paint();
+        Paint heartPaint = heartEyePaint;
         heartPaint.setColor(0xFFFF69B4);
         heartPaint.setAntiAlias(true);
         heartPaint.setStyle(Paint.Style.FILL);
@@ -2312,10 +2408,18 @@ public class GooseRenderer {
 
     // ============== ACCESSORY RENDERING ==============
 
+    // Objetos reutilizables de accesorios (se reconfiguran en cada frame)
+    private final Paint accessoryPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final RectF accessoryRect = new RectF();
+    private final Path ribbonPath = new Path();
+    private final Path crownPath = new Path();
+    private final Paint collarTagPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
     private void renderAccessories(Canvas canvas, GooseRig rig) {
         if (!PetAppearance.get().hasAccessories()) return;
 
-        Paint accessoryPaint = new Paint();
+        // reset(): algunos casos no fijan estilo/grosor y dependen de los valores por defecto
+        accessoryPaint.reset();
         accessoryPaint.setAntiAlias(true);
 
         // Hat rendering
@@ -2327,15 +2431,18 @@ public class GooseRenderer {
                     accessoryPaint.setColor(0xFFFF69B4);
                     accessoryPaint.setStyle(Paint.Style.FILL);
                     // Left loop
-                    canvas.drawOval(new RectF(headPos.x - 14, headPos.y - 18, headPos.x - 2, headPos.y - 8), accessoryPaint);
+                    accessoryRect.set(headPos.x - 14, headPos.y - 18, headPos.x - 2, headPos.y - 8);
+                    canvas.drawOval(accessoryRect, accessoryPaint);
                     // Right loop
-                    canvas.drawOval(new RectF(headPos.x + 2, headPos.y - 18, headPos.x + 14, headPos.y - 8), accessoryPaint);
+                    accessoryRect.set(headPos.x + 2, headPos.y - 18, headPos.x + 14, headPos.y - 8);
+                    canvas.drawOval(accessoryRect, accessoryPaint);
                     // Center knot
                     accessoryPaint.setColor(0xFFFF1493);
                     fillCircleFromCenter(canvas, accessoryPaint, Vector2.add(headPos, new Vector2(0, -13)), 4);
                     // Ribbon tails
                     accessoryPaint.setColor(0xFFFF69B4);
-                    Path ribbon = new Path();
+                    Path ribbon = ribbonPath;
+                    ribbon.rewind();
                     ribbon.moveTo(headPos.x - 3, headPos.y - 10);
                     ribbon.lineTo(headPos.x - 6, headPos.y + 2);
                     ribbon.lineTo(headPos.x - 2, headPos.y - 2);
@@ -2357,7 +2464,7 @@ public class GooseRenderer {
                 case 3: // Crown
                     accessoryPaint.setColor(0xFFFFD700);
                     canvas.drawRect(headPos.x - 8, headPos.y - 18, headPos.x + 8, headPos.y - 12, accessoryPaint);
-                    Path crownPath = new Path();
+                    crownPath.rewind();
                     crownPath.moveTo(headPos.x - 8, headPos.y - 18);
                     crownPath.lineTo(headPos.x - 6, headPos.y - 25);
                     crownPath.lineTo(headPos.x - 2, headPos.y - 18);
@@ -2370,7 +2477,8 @@ public class GooseRenderer {
                     break;
                 case 4: // Cap
                     accessoryPaint.setColor(0xFF4169E1);
-                    canvas.drawArc(new RectF(headPos.x - 10, headPos.y - 22, headPos.x + 10, headPos.y - 8),
+                    accessoryRect.set(headPos.x - 10, headPos.y - 22, headPos.x + 10, headPos.y - 8);
+                    canvas.drawArc(accessoryRect,
                         180, 180, true, accessoryPaint);
                     canvas.drawRect(headPos.x - 12, headPos.y - 10, headPos.x + 12, headPos.y - 8, accessoryPaint);
                     break;
@@ -2386,7 +2494,8 @@ public class GooseRenderer {
                 case 1: // Scarf
                     accessoryPaint.setColor(0xFFDC143C);
                     accessoryPaint.setStyle(Paint.Style.STROKE);
-                    canvas.drawArc(new RectF(neckPos.x - 12, neckPos.y - 5, neckPos.x + 12, neckPos.y + 10),
+                    accessoryRect.set(neckPos.x - 12, neckPos.y - 5, neckPos.x + 12, neckPos.y + 10);
+                    canvas.drawArc(accessoryRect,
                         0, 180, false, accessoryPaint);
                     accessoryPaint.setStyle(Paint.Style.FILL);
                     canvas.drawRect(neckPos.x + 8, neckPos.y, neckPos.x + 12, neckPos.y + 20, accessoryPaint);
@@ -2403,9 +2512,10 @@ public class GooseRenderer {
                     accessoryPaint.setColor(0xFF8B4513);
                     accessoryPaint.setStyle(Paint.Style.STROKE);
                     accessoryPaint.setStrokeWidth(4f);
-                    canvas.drawArc(new RectF(neckPos.x - 10, neckPos.y - 3, neckPos.x + 10, neckPos.y + 8),
+                    accessoryRect.set(neckPos.x - 10, neckPos.y - 3, neckPos.x + 10, neckPos.y + 8);
+                    canvas.drawArc(accessoryRect,
                         0, 180, false, accessoryPaint);
-                    Paint tagPaint = new Paint();
+                    Paint tagPaint = collarTagPaint;
                     tagPaint.setColor(0xFFFFD700);
                     tagPaint.setAntiAlias(true);
                     fillCircleFromCenter(canvas, tagPaint, new Vector2(neckPos.x, neckPos.y + 8), 4);
@@ -2413,8 +2523,10 @@ public class GooseRenderer {
                 case 4: // Bow Tie
                     accessoryPaint.setColor(0xFF8B0000);
                     accessoryPaint.setStyle(Paint.Style.FILL);
-                    canvas.drawOval(new RectF(neckPos.x - 12, neckPos.y - 4, neckPos.x - 2, neckPos.y + 4), accessoryPaint);
-                    canvas.drawOval(new RectF(neckPos.x + 2, neckPos.y - 4, neckPos.x + 12, neckPos.y + 4), accessoryPaint);
+                    accessoryRect.set(neckPos.x - 12, neckPos.y - 4, neckPos.x - 2, neckPos.y + 4);
+                    canvas.drawOval(accessoryRect, accessoryPaint);
+                    accessoryRect.set(neckPos.x + 2, neckPos.y - 4, neckPos.x + 12, neckPos.y + 4);
+                    canvas.drawOval(accessoryRect, accessoryPaint);
                     accessoryPaint.setColor(0xFF600000);
                     fillCircleFromCenter(canvas, accessoryPaint, neckPos, 3);
                     break;
@@ -2424,17 +2536,24 @@ public class GooseRenderer {
 
     // ============== UI RENDERING ==============
 
+    // Objetos reutilizables de emoji e indicador de sueño (se reconfiguran en cada frame)
+    private final Paint emojiTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint emojiBubblePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint emojiOutlinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final RectF emojiRect = new RectF();
+    private final Paint sleepTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
     private void renderEmoji(Canvas canvas, Vector2 position, GooseTouchHandler touchHandler) {
         String emoji = touchHandler.getCurrentEmoji();
         if (emoji.isEmpty()) return;
 
-        Paint textPaint = new Paint();
+        Paint textPaint = emojiTextPaint;
         textPaint.setColor(0xFF000000);
         textPaint.setTextSize(24f);
         textPaint.setAntiAlias(true);
         textPaint.setTextAlign(Paint.Align.CENTER);
 
-        Paint bubblePaint = new Paint();
+        Paint bubblePaint = emojiBubblePaint;
         bubblePaint.setColor(0xFFFFFFFF);
         bubblePaint.setAntiAlias(true);
 
@@ -2442,24 +2561,21 @@ public class GooseRenderer {
         float textWidth = textPaint.measureText(emoji);
         float padding = 8f;
 
-        canvas.drawRoundRect(new RectF(
+        // El mismo rectángulo sirve para el relleno y el borde
+        emojiRect.set(
             emojiPos.x - textWidth/2 - padding,
             emojiPos.y - 18,
             emojiPos.x + textWidth/2 + padding,
             emojiPos.y + 8
-        ), 8, 8, bubblePaint);
+        );
+        canvas.drawRoundRect(emojiRect, 8, 8, bubblePaint);
 
-        Paint outlinePaint = new Paint();
+        Paint outlinePaint = emojiOutlinePaint;
         outlinePaint.setColor(0xFF333333);
         outlinePaint.setStyle(Paint.Style.STROKE);
         outlinePaint.setStrokeWidth(2f);
         outlinePaint.setAntiAlias(true);
-        canvas.drawRoundRect(new RectF(
-            emojiPos.x - textWidth/2 - padding,
-            emojiPos.y - 18,
-            emojiPos.x + textWidth/2 + padding,
-            emojiPos.y + 8
-        ), 8, 8, outlinePaint);
+        canvas.drawRoundRect(emojiRect, 8, 8, outlinePaint);
 
         canvas.drawText(emoji, emojiPos.x, emojiPos.y, textPaint);
     }
@@ -2615,7 +2731,7 @@ public class GooseRenderer {
     private void renderSleepIndicator(Canvas canvas, Vector2 position, GooseAI ai) {
         if (ai.getCurrentTask() != GooseTasks.GooseTask.Sleeping) return;
 
-        Paint textPaint = new Paint();
+        Paint textPaint = sleepTextPaint;
         textPaint.setColor(0xFF6666FF);
         textPaint.setAntiAlias(true);
 
@@ -2631,6 +2747,21 @@ public class GooseRenderer {
     }
 
     // ============== ACHIEVEMENT NOTIFICATION RENDERING ==============
+
+    // Objetos reutilizables del banner de logros (se reconfiguran en cada frame)
+    private final Paint bannerShadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final BlurMaskFilter bannerShadowBlur = new BlurMaskFilter(12f, BlurMaskFilter.Blur.NORMAL);
+    private final Paint bannerBgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint bannerGlowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint bannerBorderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint bannerIconBgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint bannerIconPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint bannerHeaderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint bannerNamePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint bannerDescPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint bannerCounterPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint bannerCounterTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint notificationSparklePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     /**
      * Render the achievement notification banner.
@@ -2653,20 +2784,20 @@ public class GooseRenderer {
         float bannerY = 40f + slideOffset;
 
         // Shadow
-        Paint shadowPaint = new Paint();
+        Paint shadowPaint = bannerShadowPaint;
         shadowPaint.setColor(Color.argb((int)(60 * animPhase), 0, 0, 0));
         shadowPaint.setAntiAlias(true);
-        shadowPaint.setMaskFilter(new BlurMaskFilter(12f, BlurMaskFilter.Blur.NORMAL));
+        shadowPaint.setMaskFilter(bannerShadowBlur);
         canvas.drawRoundRect(bannerX + 4, bannerY + 6, bannerX + bannerWidth + 4,
                 bannerY + bannerHeight + 6, 16f, 16f, shadowPaint);
 
         // Main banner gradient background
-        Paint bgPaint = new Paint();
+        Paint bgPaint = bannerBgPaint;
         bgPaint.setAntiAlias(true);
         LinearGradient gradient = new LinearGradient(
                 bannerX, bannerY, bannerX + bannerWidth, bannerY + bannerHeight,
-                new int[]{0xFFFFD700, 0xFFFFA500, 0xFFFF8C00},
-                new float[]{0f, 0.5f, 1f},
+                BANNER_GRADIENT_COLORS,
+                GRADIENT_STOPS_50,
                 Shader.TileMode.CLAMP
         );
         bgPaint.setShader(gradient);
@@ -2674,7 +2805,7 @@ public class GooseRenderer {
                 bannerY + bannerHeight, 16f, 16f, bgPaint);
 
         // Inner glow
-        Paint glowPaint = new Paint();
+        Paint glowPaint = bannerGlowPaint;
         glowPaint.setAntiAlias(true);
         RadialGradient innerGlow = new RadialGradient(
                 bannerX + bannerWidth / 2, bannerY + bannerHeight / 2,
@@ -2688,7 +2819,7 @@ public class GooseRenderer {
                 bannerY + bannerHeight, 16f, 16f, glowPaint);
 
         // Border
-        Paint borderPaint = new Paint();
+        Paint borderPaint = bannerBorderPaint;
         borderPaint.setColor(Color.argb((int)(200 * animPhase), 255, 255, 255));
         borderPaint.setStyle(Paint.Style.STROKE);
         borderPaint.setStrokeWidth(2f);
@@ -2701,13 +2832,13 @@ public class GooseRenderer {
         float iconX = bannerX + 20f + iconSize / 2;
         float iconY = bannerY + bannerHeight / 2;
 
-        Paint iconBgPaint = new Paint();
+        Paint iconBgPaint = bannerIconBgPaint;
         iconBgPaint.setColor(Color.argb((int)(220 * animPhase), 255, 255, 255));
         iconBgPaint.setAntiAlias(true);
         canvas.drawCircle(iconX, iconY, iconSize / 2 + 3, iconBgPaint);
 
         // Achievement icon (emoji)
-        Paint iconPaint = new Paint();
+        Paint iconPaint = bannerIconPaint;
         iconPaint.setTextSize(32f);
         iconPaint.setTextAlign(Paint.Align.CENTER);
         iconPaint.setAntiAlias(true);
@@ -2715,7 +2846,7 @@ public class GooseRenderer {
         canvas.drawText(achievement.icon, iconX, iconY + 10f, iconPaint);
 
         // "Achievement Unlocked!" text
-        Paint headerPaint = new Paint();
+        Paint headerPaint = bannerHeaderPaint;
         headerPaint.setColor(Color.argb((int)(255 * animPhase), 255, 255, 255));
         headerPaint.setTextSize(12f);
         headerPaint.setAntiAlias(true);
@@ -2725,7 +2856,7 @@ public class GooseRenderer {
         canvas.drawText("ACHIEVEMENT UNLOCKED!", textStartX, bannerY + 22f, headerPaint);
 
         // Achievement name
-        Paint namePaint = new Paint();
+        Paint namePaint = bannerNamePaint;
         namePaint.setColor(Color.argb((int)(255 * animPhase), 80, 40, 0));
         namePaint.setTextSize(18f);
         namePaint.setAntiAlias(true);
@@ -2733,7 +2864,7 @@ public class GooseRenderer {
         canvas.drawText(achievement.name, textStartX, bannerY + 44f, namePaint);
 
         // Achievement description
-        Paint descPaint = new Paint();
+        Paint descPaint = bannerDescPaint;
         descPaint.setColor(Color.argb((int)(200 * animPhase), 80, 50, 20));
         descPaint.setTextSize(11f);
         descPaint.setAntiAlias(true);
@@ -2755,14 +2886,14 @@ public class GooseRenderer {
         // Pending notifications indicator
         int pending = TheGoose.getPendingNotificationCount();
         if (pending > 1) {
-            Paint counterPaint = new Paint();
+            Paint counterPaint = bannerCounterPaint;
             counterPaint.setColor(Color.argb((int)(220 * animPhase), 255, 100, 100));
             counterPaint.setAntiAlias(true);
             float counterX = bannerX + bannerWidth - 20f;
             float counterY = bannerY + bannerHeight - 10f;
             canvas.drawCircle(counterX, counterY, 12f, counterPaint);
 
-            Paint counterTextPaint = new Paint();
+            Paint counterTextPaint = bannerCounterTextPaint;
             counterTextPaint.setColor(Color.WHITE);
             counterTextPaint.setTextSize(12f);
             counterTextPaint.setTextAlign(Paint.Align.CENTER);
@@ -2777,7 +2908,7 @@ public class GooseRenderer {
      */
     private void renderNotificationSparkles(Canvas canvas, float centerX, float centerY,
                                             float width, float height, float alpha) {
-        Paint sparklePaint = new Paint();
+        Paint sparklePaint = notificationSparklePaint;
         sparklePaint.setAntiAlias(true);
 
         float time = Time.timeF() * 2f;
@@ -2814,11 +2945,20 @@ public class GooseRenderer {
 
     // ============== SHAPE DRAWING UTILITIES ==============
 
+    // Objetos reutilizables de las formas (cada llamada dibuja antes de la siguiente)
+    private final Path heartPath = new Path();
+    private final Path starPath = new Path();
+    private final RectF noteHeadRect = new RectF();
+    private final Path noteFlagPath = new Path();
+    private final Path dropPath = new Path();
+    private final RectF ellipseRect = new RectF();
+
     /**
      * Draw a heart shape.
      */
     private void drawHeart(Canvas canvas, Paint paint, Vector2 pos, float size) {
-        Path heart = new Path();
+        Path heart = heartPath;
+        heart.rewind();
         float x = pos.x;
         float y = pos.y;
         float s = size * 0.5f;
@@ -2836,7 +2976,8 @@ public class GooseRenderer {
      * Draw a 5-pointed star.
      */
     private void drawStar(Canvas canvas, Paint paint, Vector2 pos, float size) {
-        Path star = new Path();
+        Path star = starPath;
+        star.rewind();
         float outerRadius = size;
         float innerRadius = size * 0.4f;
 
@@ -2865,12 +3006,13 @@ public class GooseRenderer {
         paint.setStyle(Paint.Style.FILL);
 
         // Note head
-        canvas.drawOval(new RectF(
+        noteHeadRect.set(
             pos.x - size * 0.4f,
             pos.y + size * 0.3f,
             pos.x + size * 0.3f,
             pos.y + size * 0.7f
-        ), paint);
+        );
+        canvas.drawOval(noteHeadRect, paint);
 
         // Stem
         paint.setStyle(Paint.Style.STROKE);
@@ -2879,7 +3021,8 @@ public class GooseRenderer {
                        pos.x + size * 0.25f, pos.y - size * 0.5f, paint);
 
         // Flag
-        Path flag = new Path();
+        Path flag = noteFlagPath;
+        flag.rewind();
         flag.moveTo(pos.x + size * 0.25f, pos.y - size * 0.5f);
         flag.quadTo(pos.x + size * 0.6f, pos.y - size * 0.3f,
                    pos.x + size * 0.4f, pos.y);
@@ -2891,7 +3034,8 @@ public class GooseRenderer {
      * Draw a sweat drop.
      */
     private void drawSweatDrop(Canvas canvas, Paint paint, Vector2 pos, float size) {
-        Path drop = new Path();
+        Path drop = dropPath;
+        drop.rewind();
         drop.moveTo(pos.x, pos.y - size);
         drop.quadTo(pos.x + size * 0.6f, pos.y, pos.x, pos.y + size * 0.5f);
         drop.quadTo(pos.x - size * 0.6f, pos.y, pos.x, pos.y - size);
@@ -2936,7 +3080,8 @@ public class GooseRenderer {
     // ============== BASIC DRAWING UTILITIES ==============
 
     public void fillEllipseFromCenter(Canvas canvas, Paint paint, int x, int y, int xRadius, int yRadius) {
-        canvas.drawOval(new RectF(x - xRadius, y - yRadius, x + xRadius, y + yRadius), paint);
+        ellipseRect.set(x - xRadius, y - yRadius, x + xRadius, y + yRadius);
+        canvas.drawOval(ellipseRect, paint);
     }
 
     public void fillCircleFromCenter(Canvas canvas, Paint paint, Vector2 pos, int radius) {

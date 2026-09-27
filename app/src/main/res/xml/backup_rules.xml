@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-   Backup rules for Android Auto Backup.
-   See https://developer.android.com/guide/topics/data/autobackup
-   Note: This file is ignored for devices older than API 31
+   Copia de seguridad automática (Android 11 y anteriores).
+   Solo se respalda lo que se incluye acá. Quedan afuera a propósito:
+   - goose_brain_secrets.xml: claves de API cifradas con una llave del Keystore
+     de este teléfono; restauradas en otro equipo no se pueden descifrar.
+   - los modelos descargados (almacenamiento externo): pesan gigas y se bajan de nuevo.
 -->
 <full-backup-content>
-    <!-- Include pet configuration and state -->
+    <!-- Estado de la mascota -->
     <include domain="file" path="config.ini" />
-
-    <!-- Exclude potentially sensitive or device-specific data -->
-    <exclude domain="sharedpref" path="device.xml" />
-    <exclude domain="database" path="." />
-    <exclude domain="external" path="." />
-
-    <!-- Exclude cache and temporary files -->
-    <exclude domain="cache" path="." />
+    <!-- Memoria y diario del ganso -->
+    <include domain="file" path="brain/" />
+    <!-- Evolución, recuerdos de las plantillas y configuración del cerebro -->
+    <include domain="sharedpref" path="GooseEvolutionPrefs.xml" />
+    <include domain="sharedpref" path="goose_llm_memory.xml" />
+    <include domain="sharedpref" path="goose_brain.xml" />
 </full-backup-content>
