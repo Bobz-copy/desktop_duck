@@ -62,6 +62,9 @@ public final class GoosePhrases {
     private static final Map<String, String[]> SPANISH = buildSpanish();
     private static final Map<String, String[]> ENGLISH = buildEnglish();
 
+    // Burbujas cortas escritas en inglés en el código (showEmoji): inglés -> español
+    private static final Map<String, String> SPANISH_EXPRESSIONS = buildSpanishExpressions();
+
     private GoosePhrases() {
     }
 
@@ -97,6 +100,22 @@ public final class GoosePhrases {
         return tableFor(language).keySet();
     }
 
+    /**
+     * Traduce una expresión corta de la burbuja del ganso ("*preen*", "bread?"...).
+     * Solo cambia textos conocidos, por coincidencia exacta y solo en español; cualquier
+     * otro texto (caritas, onomatopeyas, lo que genera un modelo, null) vuelve igual.
+     */
+    public static String localizeExpression(String text, Language language) {
+        if (text == null || language != Language.SPANISH) return text;
+        String translated = SPANISH_EXPRESSIONS.get(text);
+        return translated != null ? translated : text;
+    }
+
+    /** Expresiones en inglés que tienen traducción (vista inmodificable). */
+    public static Set<String> expressionKeys() {
+        return SPANISH_EXPRESSIONS.keySet();
+    }
+
     private static Map<String, String[]> tableFor(Language language) {
         return language == Language.ENGLISH ? ENGLISH : SPANISH;
     }
@@ -110,6 +129,13 @@ public final class GoosePhrases {
     private static void add(Map<String, String[]> table, String key, String... phrases) {
         if (table.put(key, phrases) != null) {
             throw new IllegalStateException("Clave de frases duplicada: " + key);
+        }
+    }
+
+    /** Agrega una traducción de expresión y falla si ya existía. */
+    private static void addExpression(Map<String, String> table, String english, String spanish) {
+        if (table.put(english, spanish) != null) {
+            throw new IllegalStateException("Expresión duplicada: " + english);
         }
     }
 
@@ -449,6 +475,125 @@ public final class GoosePhrases {
         add(t, MILESTONE_DAYS_100, "100 DAYS!!!");
         add(t, MILESTONE_DAYS_30, "1 MONTH! WOW!");
         add(t, MILESTONE_DAYS_7, "1 WEEK! <3");
+
+        return Collections.unmodifiableMap(t);
+    }
+
+    // ============== EXPRESIONES CORTAS (inglés -> español) ==============
+
+    // Salen de GooseAI, GooseBehaviorTree, GooseTouchHandler, TheGoose, GooseSystemReactions y
+    // GooseEasterEggs. Caritas, "ZZZ", "LA LA LA", "HONK" sin signo, "jaja" y "<3" quedan igual.
+    private static Map<String, String> buildSpanishExpressions() {
+        Map<String, String> t = new HashMap<>();
+
+        // Hambre y comida
+        addExpression(t, "hungry", "hambre");
+        addExpression(t, "hungry...", "hambre...");
+        addExpression(t, "hungry!", "¡hambre!");
+        addExpression(t, "HUNGRY!", "¡HAMBRE!");
+        addExpression(t, "food?", "¿comida?");
+        addExpression(t, "bread?", "¿pan?");
+        addExpression(t, "BREAD?", "¿PAN?");
+        addExpression(t, "BREAD!", "¡PAN!");
+        addExpression(t, "feed me!", "¡dame de comer!");
+        addExpression(t, "snack?", "¿algo pa picar?");
+        addExpression(t, "*stomach growl*", "*ruge la panza*");
+        addExpression(t, "YUM", "ÑAM");
+        addExpression(t, "lunch?", "¿almorzamos?");
+        addExpression(t, "snack time!", "¡hora de picar!");
+        addExpression(t, "food time?", "¿hora de comer?");
+
+        // Sueño y hora del día
+        addExpression(t, "sleepy...", "tengo sueño...");
+        addExpression(t, "*yawn*", "*bosteza*");
+        addExpression(t, "tired...", "cansado...");
+        addExpression(t, "nap time?", "¿siestita?");
+        addExpression(t, "bedtime?", "¿a la cama?");
+        addExpression(t, "zzz?", "¿zzz?");
+        addExpression(t, "ZZZ?", "¿ZZZ?");
+        addExpression(t, "morning!", "¡buen día!");
+        addExpression(t, "coffee?", "¿un cocido?");
+        addExpression(t, "good day!", "¡lindo día!");
+
+        // Soledad, tristeza y aburrimiento
+        addExpression(t, "lonely...", "solito...");
+        addExpression(t, "*sigh*", "*suspira*");
+        addExpression(t, "*sniff*", "*snif*");
+        addExpression(t, "why...", "¿por qué...?");
+        addExpression(t, "sad goose", "ganso triste");
+        addExpression(t, "hello?", "¿hola?");
+        addExpression(t, "pet me?", "¿me mimás?");
+        addExpression(t, "PET ME", "MIMAME");
+        addExpression(t, "*poke*", "*toquecito*");
+        addExpression(t, "notice me!", "¡haceme caso!");
+        addExpression(t, "BORED", "ABURRIDO");
+
+        // Alegría y cariño
+        addExpression(t, "YAY", "YUPI");
+        addExpression(t, "YAY!", "¡YUPI!");
+        addExpression(t, "hehe", "jeje");
+        addExpression(t, "hehe!", "¡jeje!");
+        addExpression(t, "hehehe", "jejeje");
+        addExpression(t, "WOOP!", "¡YUJU!");
+        addExpression(t, "HAPPY!", "¡FELIZ!");
+        addExpression(t, "*happy*", "*feliz*");
+        addExpression(t, "~happy~", "~feliz~");
+        addExpression(t, "best day!", "¡el mejor día!");
+        addExpression(t, "LOVE!", "¡AMOR!");
+        addExpression(t, "love u!", "¡te quiero!");
+        addExpression(t, "*nuzzle*", "*mimos*");
+        addExpression(t, "BEST!", "¡LO MÁS!");
+        addExpression(t, "purr~", "*ronronea*");
+        addExpression(t, "bliss!", "¡qué placer!");
+        addExpression(t, "BLISS!", "¡QUÉ PLACER!");
+        addExpression(t, "heaven~", "el paraíso~");
+        addExpression(t, "thanks!", "¡gracias!");
+        addExpression(t, "HI!", "¡HOLA!");
+
+        // Juego, movimiento y toques
+        addExpression(t, "ZOOM!", "¡ZUM!");
+        addExpression(t, "zoom!", "¡zum!");
+        addExpression(t, "WHEEE!", "¡WIIII!");
+        addExpression(t, "wheee!", "¡wiii!");
+        addExpression(t, "wheee~", "wiii~");
+        addExpression(t, "~dance~", "~baile~");
+        addExpression(t, "stretch~", "estiro~");
+        addExpression(t, "*peck*", "*picotea*");
+        addExpression(t, "*preen*", "*se acicala*");
+        addExpression(t, "*waddle*", "*se bambolea*");
+        addExpression(t, "*bounce*", "*rebota*");
+        addExpression(t, "*boop*", "*bup*");
+        addExpression(t, "dizzy~", "mareado~");
+        addExpression(t, "whoa!", "¡epa!");
+        addExpression(t, "WHOA!", "¡EPA!");
+        addExpression(t, "oof!", "¡uf!");
+        addExpression(t, "hey!", "¡eh!");
+        addExpression(t, "HEY!", "¡EH!");
+        addExpression(t, "oh!", "¡oh!");
+        addExpression(t, "ok!", "¡listo!");
+        addExpression(t, "hmm", "mmm");
+        addExpression(t, "AGAIN!", "¡OTRA VEZ!");
+        addExpression(t, "HONK!", "¡HONK!");
+
+        // Eventos al azar y evolución
+        addExpression(t, "EGG!", "¡HUEVO!");
+        addExpression(t, "FIGHT!", "¡PELEA!");
+        addExpression(t, "NEW!", "¡NUEVO!");
+        addExpression(t, "SMOOTH", "SUAVECITO");
+        addExpression(t, "FLOP!", "¡PLAF!");
+        addExpression(t, "TADA!", "¡TARÁN!");
+        addExpression(t, "EVOLVED!", "¡EVOLUCIONÉ!");
+
+        // Reacciones del sistema (batería, combos) y fechas especiales
+        addExpression(t, "PHEW", "UFF");
+        addExpression(t, "FULL!", "¡A FULL!");
+        addExpression(t, "WOW!", "¡GUAU!");
+        addExpression(t, "NICE!", "¡JOYA!");
+        addExpression(t, "PERFECT!", "¡PERFECTO!");
+        addExpression(t, "BOO!", "¡BU!");
+        addExpression(t, "MERRY HONKMAS!", "¡FELIZ NAVIHONK!");
+        addExpression(t, "HAPPY NEW HONK!", "¡FELIZ AÑO HONK!");
+        addExpression(t, "PRANKED!", "¡CAÍSTE!");
 
         return Collections.unmodifiableMap(t);
     }

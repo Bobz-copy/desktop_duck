@@ -39,6 +39,8 @@ public class OpenAiCompatBackend implements LlmBackend {
     private static final int HTTP_UNAUTHORIZED = 401;
     private static final int HTTP_FORBIDDEN = 403;
     private static final int HTTP_TOO_MANY_REQUESTS = 429;
+    private static final int HTTP_REDIRECT_MIN = 300;
+    private static final int HTTP_REDIRECT_MAX = 399;
     private static final int HTTP_OK_MIN = 200;
     private static final int HTTP_OK_MAX = 299;
 
@@ -151,6 +153,11 @@ public class OpenAiCompatBackend implements LlmBackend {
                 connection = send(request, false);
                 status = connection.getResponseCode();
             }
+            if (status >= HTTP_REDIRECT_MIN && status <= HTTP_REDIRECT_MAX) {
+                throw new LlmException(LlmException.Kind.BAD_RESPONSE,
+                        "El servidor quiso redirigir el pedido (HTTP " + status
+                                + "); configurá la URL final");
+            }
             if (status < HTTP_OK_MIN || status > HTTP_OK_MAX) {
                 throw errorForStatus(status, readLimited(connection.getErrorStream()));
             }
@@ -210,6 +217,9 @@ public class OpenAiCompatBackend implements LlmBackend {
         connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
         connection.setReadTimeout(READ_TIMEOUT_MS);
         connection.setDoOutput(true);
+        // Una redirección podría llevar el pedido (y la clave) a un servidor de
+        // internet en texto plano, saltándose el control de isAvailable()
+        connection.setInstanceFollowRedirects(false);
         connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
         connection.setRequestProperty("Accept", "text/event-stream");
         if (!apiKey.isEmpty()) {

@@ -10,15 +10,15 @@ Fecha: 2026-09-27 · Rama de trabajo: `estabilizacion` · Hallazgos de origen: [
 | 1 · Destrabar | ✅ | Eventos que terminan, árbol reactivo, cooldowns críticos, tareas con timeout, sin bucle infinito, audio seguro |
 | 2 · Una sola IA | ✅ | Un behavior tree, timers reseteados al interrumpir, modos secretos con duración, Seeking con cooldown |
 | 3 · Reloj | ✅ | Delta real con tope, tiempo en `double` |
-| 4 · Ciclo de vida | ✅ salvo notificaciones troll | Foreground service, `destroy()` real, `PetRepository` con escritura atómica, logros persistidos, permiso de notificaciones |
+| 4 · Ciclo de vida | ✅ | Foreground service, `destroy()` real, `PetRepository` con escritura atómica, logros persistidos, permiso de notificaciones, notificaciones troll con cooldown de 30 min e ID fijo, vuelve solo tras reiniciar o actualizar |
 | 5 · Pantalla y toques | ✅ | Una escala, ventana chica táctil que sigue al ganso, rotación, pointer ids |
-| 6 · Tamagotchi | 🟡 | Hecho: tasas en horas, offline con pisos, evolución conectada, hitos. Falta: sueño nocturno automático, higiene y salud |
-| 7 · Rendimiento | ⏳ | Pendiente: cachear objetos gráficos del renderer, batería por IPC cada frame |
+| 6 · Tamagotchi | ✅ | Tasas en horas, offline con pisos, evolución conectada, hitos, sueño nocturno automático, higiene (barro, baño) y salud (enfermarse, remedio) |
+| 7 · Rendimiento | ✅ salvo gradientes | 0 Paint/Path/RectF/BlurMaskFilter por frame; batería cacheada 1 min; chequeos por reloj cada 20 s. Quedan 24 gradientes por frame (dependen de la posición) |
 | 8 · Núcleo del cerebro | ✅ | Interfaz, orquestador, parser tolerante, memoria, esquema JSON |
 | 9 · Backends remotos | ✅ | OpenAI-compatible (Ollama, LM Studio, OpenRouter, Groq), Gemini, Claude (SDK oficial) |
 | 10 · En el teléfono | 🟡 | Hecho: LiteRT-LM con 5 modelos descargables. Falta: llama.cpp (GGUF) |
 | 11 · Pantalla de IA | ✅ | Backend, modelo, clave cifrada, GPU, probar, memoria, diario |
-| 12 · Funciones | 🟡 | Hecho: chat, chat rápido con pulsación larga, memoria, diario, sueños, voz. Falta: notas en pantalla, reaccionar a notificaciones y apps (opcionales, sensibles) |
+| 12 · Funciones | 🟡 | Hecho: chat, chat rápido con pulsación larga, memoria, diario, sueños, voz, notas en pantalla (escritas por la IA). Falta: reaccionar a notificaciones y a la app en uso (opcionales, requieren permisos sensibles) |
 
 ### Mediciones en emulador (x86_64, sin GPU)
 

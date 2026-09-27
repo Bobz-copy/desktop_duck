@@ -253,6 +253,36 @@ public class OpenAiCompatBackendTest {
     }
 
     @Test
+    public void redirect_isNotFollowed() throws Exception {
+        server.enqueue(new MockResponse().setResponseCode(302)
+                .setHeader("Location", "http://8.8.8.8/v1/chat/completions"));
+        respondWith(200, "text/event-stream", chunk("no debe llegar") + "data: [DONE]\n\n");
+        Recorder recorder = new Recorder();
+
+        new OpenAiCompatBackend(baseUrl, "qwen3", "secreto").generate(request(), recorder);
+        recorder.await();
+
+        assertNotNull(recorder.error);
+        assertEquals(LlmException.Kind.BAD_RESPONSE, recorder.error.getKind());
+        assertTrue(recorder.error.getMessage().contains("302"));
+        assertEquals("un solo pedido: la redirección no se siguió", 1, server.getRequestCount());
+    }
+
+    @Test
+    public void hugeStreamingLine_isRejectedInsteadOfExhaustingMemory() throws Exception {
+        StringBuilder huge = new StringBuilder("data: ");
+        for (int i = 0; i < SseReader.MAX_LINE_CHARS + 10; i++) huge.append('x');
+        respondWith(200, "text/event-stream", huge.toString());
+        Recorder recorder = new Recorder();
+
+        new OpenAiCompatBackend(baseUrl, "qwen3", "").generate(request(), recorder);
+        recorder.await();
+
+        assertNotNull(recorder.error);
+        assertEquals(LlmException.Kind.NETWORK, recorder.error.getKind());
+    }
+
+    @Test
     public void unreachableServer_isNetworkError() throws Exception {
         int port = server.getPort();
         server.shutdown();

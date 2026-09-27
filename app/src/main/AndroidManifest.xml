@@ -68,18 +68,17 @@
             </intent-filter>
         </receiver>
 
+        <!-- Botones del widget: no exportado, otras apps no pueden usarlo -->
+        <receiver
+            android:name=".PetWidgetActionReceiver"
+            android:exported="false" />
+
         <!-- Pet Widget -->
         <receiver
             android:name=".PetWidget"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="com.cfks.goosedroid.ACTION_FEED" />
-                <action android:name="com.cfks.goosedroid.ACTION_PLAY" />
-                <action android:name="com.cfks.goosedroid.ACTION_SLEEP" />
-                <action android:name="com.cfks.goosedroid.ACTION_REFRESH" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"

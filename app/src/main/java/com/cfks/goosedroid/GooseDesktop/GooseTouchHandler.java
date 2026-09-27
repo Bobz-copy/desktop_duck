@@ -1186,7 +1186,11 @@ public class GooseTouchHandler {
      * Show an emoji/expression above the pet.
      */
     public void showEmoji(String emoji) {
-        currentEmoji = emoji;
+        // Las expresiones escritas en inglés en el código se traducen si el idioma es español;
+        // null queda como "" porque el renderer llama a isEmpty()
+        GoosePhrases.Language language = GooseLLM.isSpanish()
+                ? GoosePhrases.Language.SPANISH : GoosePhrases.Language.ENGLISH;
+        currentEmoji = emoji == null ? "" : GoosePhrases.localizeExpression(emoji, language);
         emojiShowTime = System.currentTimeMillis();
         emojiScale = 0.5f;
         emojiOffsetY = 0f;
