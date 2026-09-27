@@ -266,7 +266,7 @@ public class GooseRenderer {
         // Render emoji outside of scale (so it stays readable)
         if (petModeEnabled) {
             renderEmoji(canvas, position, touchHandler);
-            renderThoughtBubble(canvas, position);
+            renderThoughtBubble(canvas, position, worldWidth, worldHeight);
         }
 
         // Render achievement notifications at top of screen
@@ -2464,98 +2464,151 @@ public class GooseRenderer {
         canvas.drawText(emoji, emojiPos.x, emojiPos.y, textPaint);
     }
 
+    // ============== THOUGHT BUBBLE ==============
+
+    private static final float THOUGHT_TEXT_SIZE = 15f;
+    private static final float THOUGHT_LINE_HEIGHT = 19f;
+    private static final float THOUGHT_MAX_TEXT_WIDTH = 170f;
+    private static final float THOUGHT_PADDING = 11f;
+    private static final float THOUGHT_CORNER_RADIUS = 10f;
+    private static final float THOUGHT_OFFSET_X = 38f;
+    private static final float THOUGHT_GAP_ABOVE_GOOSE = 62f;
+    private static final float THOUGHT_SCREEN_MARGIN = 6f;
+    private static final int THOUGHT_MAX_LINES = 5;
+    private static final String THOUGHT_ELLIPSIS = "…";
+
+    private final Paint thoughtTextPaint = createThoughtTextPaint();
+    private final Paint thoughtFillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint thoughtOutlinePaint = createThoughtOutlinePaint();
+    private final RectF thoughtRect = new RectF();
+    private final List<String> thoughtLines = new ArrayList<>();
+    private String wrappedThought = null;
+
+    private static Paint createThoughtTextPaint() {
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        paint.setTextSize(THOUGHT_TEXT_SIZE);
+        paint.setTextAlign(Paint.Align.LEFT);
+        paint.setTypeface(Typeface.DEFAULT_BOLD);
+        return paint;
+    }
+
+    private static Paint createThoughtOutlinePaint() {
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(1.5f);
+        return paint;
+    }
+
+    /**
+     * Parte el texto en líneas que entren en el ancho máximo. Se recalcula solo
+     * cuando cambia el pensamiento.
+     */
+    private void wrapThought(String thought) {
+        if (thought.equals(wrappedThought)) return;
+        wrappedThought = thought;
+        thoughtLines.clear();
+
+        StringBuilder line = new StringBuilder();
+        for (String word : thought.trim().split("\\s+")) {
+            String candidate = line.length() == 0 ? word : line + " " + word;
+            if (thoughtTextPaint.measureText(candidate) <= THOUGHT_MAX_TEXT_WIDTH) {
+                line.setLength(0);
+                line.append(candidate);
+                continue;
+            }
+            if (line.length() > 0) {
+                thoughtLines.add(line.toString());
+                line.setLength(0);
+            }
+            // Una palabra más ancha que la burbuja se corta por caracteres
+            String rest = word;
+            while (thoughtTextPaint.measureText(rest) > THOUGHT_MAX_TEXT_WIDTH
+                    && rest.length() > 1) {
+                int count = Math.max(1, thoughtTextPaint.breakText(
+                        rest, true, THOUGHT_MAX_TEXT_WIDTH, null));
+                thoughtLines.add(rest.substring(0, count));
+                rest = rest.substring(count);
+            }
+            line.append(rest);
+        }
+        if (line.length() > 0) {
+            thoughtLines.add(line.toString());
+        }
+
+        if (thoughtLines.size() > THOUGHT_MAX_LINES) {
+            String last = thoughtLines.get(THOUGHT_MAX_LINES - 1);
+            while (thoughtLines.size() > THOUGHT_MAX_LINES) {
+                thoughtLines.remove(thoughtLines.size() - 1);
+            }
+            thoughtLines.set(THOUGHT_MAX_LINES - 1, last + THOUGHT_ELLIPSIS);
+        }
+    }
+
     /**
      * Render the thought bubble showing what the goose is thinking.
      */
-    private void renderThoughtBubble(Canvas canvas, Vector2 position) {
+    private void renderThoughtBubble(Canvas canvas, Vector2 position,
+                                     int worldWidth, int worldHeight) {
         String thought = TheGoose.getCurrentThought();
         if (thought == null || thought.isEmpty()) return;
 
         float alpha = TheGoose.getThoughtAlpha();
         if (alpha <= 0) return;
+        int alphaInt = (int) (Math.min(1f, alpha) * 255);
 
-        int alphaInt = (int)(alpha * 255);
+        wrapThought(thought);
+        if (thoughtLines.isEmpty()) return;
 
-        // Position the thought bubble above and to the right of the goose
-        float bubbleX = position.x + 45f;
-        float bubbleY = position.y - 85f;
+        float textWidth = 0f;
+        for (String line : thoughtLines) {
+            textWidth = Math.max(textWidth, thoughtTextPaint.measureText(line));
+        }
+        float width = textWidth + 2f * THOUGHT_PADDING;
+        float height = thoughtLines.size() * THOUGHT_LINE_HEIGHT + 2f * THOUGHT_PADDING - 4f;
 
-        Paint textPaint = new Paint();
-        textPaint.setColor(Color.argb(alphaInt, 50, 50, 50));
-        textPaint.setTextSize(16f);
-        textPaint.setAntiAlias(true);
-        textPaint.setTextAlign(Paint.Align.LEFT);
-        textPaint.setTypeface(Typeface.DEFAULT_BOLD);
+        // Arriba a la derecha del ganso; si no entra, del otro lado o abajo
+        float left = position.x + THOUGHT_OFFSET_X;
+        boolean isOnRight = left + width <= worldWidth - THOUGHT_SCREEN_MARGIN;
+        if (!isOnRight) {
+            left = position.x - THOUGHT_OFFSET_X - width;
+        }
+        float top = position.y - THOUGHT_GAP_ABOVE_GOOSE - height;
+        boolean isAbove = top >= THOUGHT_SCREEN_MARGIN;
+        if (!isAbove) {
+            top = position.y + THOUGHT_GAP_ABOVE_GOOSE;
+        }
+        left = SamMath.Clamp(left, THOUGHT_SCREEN_MARGIN,
+                Math.max(THOUGHT_SCREEN_MARGIN, worldWidth - THOUGHT_SCREEN_MARGIN - width));
+        top = SamMath.Clamp(top, THOUGHT_SCREEN_MARGIN,
+                Math.max(THOUGHT_SCREEN_MARGIN, worldHeight - THOUGHT_SCREEN_MARGIN - height));
+        thoughtRect.set(left, top, left + width, top + height);
 
-        // Measure text
-        float textWidth = textPaint.measureText(thought);
-        float padding = 12f;
-        float maxWidth = 150f;
+        thoughtFillPaint.setColor(Color.argb(alphaInt, 255, 255, 255));
+        thoughtOutlinePaint.setColor(Color.argb(alphaInt, 170, 170, 170));
+        thoughtTextPaint.setColor(Color.argb(alphaInt, 45, 45, 45));
 
-        // Handle multi-line if needed
-        if (textWidth > maxWidth) {
-            textPaint.setTextSize(14f);
-            textWidth = Math.min(textPaint.measureText(thought), maxWidth);
+        // Cola: tres círculos que van de la burbuja hacia el ganso
+        float tailX = isOnRight ? thoughtRect.left : thoughtRect.right;
+        float tailY = isAbove ? thoughtRect.bottom : thoughtRect.top;
+        float stepX = isOnRight ? -5f : 5f;
+        float stepY = isAbove ? 8f : -8f;
+        float[] radii = {6f, 4f, 2.5f};
+        for (int i = 0; i < radii.length; i++) {
+            float cx = tailX + stepX * (i + 0.4f);
+            float cy = tailY + stepY * (i + 1);
+            canvas.drawCircle(cx, cy, radii[i], thoughtFillPaint);
+            canvas.drawCircle(cx, cy, radii[i], thoughtOutlinePaint);
         }
 
-        // Bubble background
-        Paint bubblePaint = new Paint();
-        bubblePaint.setColor(Color.argb(alphaInt, 255, 255, 255));
-        bubblePaint.setAntiAlias(true);
-        bubblePaint.setShadowLayer(4f, 2f, 2f, Color.argb(alphaInt / 3, 0, 0, 0));
+        canvas.drawRoundRect(thoughtRect, THOUGHT_CORNER_RADIUS, THOUGHT_CORNER_RADIUS,
+                thoughtFillPaint);
+        canvas.drawRoundRect(thoughtRect, THOUGHT_CORNER_RADIUS, THOUGHT_CORNER_RADIUS,
+                thoughtOutlinePaint);
 
-        float bubbleLeft = bubbleX - padding;
-        float bubbleTop = bubbleY - 20f;
-        float bubbleRight = bubbleX + textWidth + padding;
-        float bubbleBottom = bubbleY + 8f;
-
-        // Draw main bubble
-        RectF bubbleRect = new RectF(bubbleLeft, bubbleTop, bubbleRight, bubbleBottom);
-        canvas.drawRoundRect(bubbleRect, 10f, 10f, bubblePaint);
-
-        // Draw thought bubble tail (three circles getting smaller)
-        bubblePaint.setShadowLayer(0, 0, 0, 0);
-        float tailX = bubbleLeft;
-        float tailY = bubbleBottom;
-
-        // Largest circle
-        canvas.drawCircle(tailX - 2f, tailY + 8f, 6f, bubblePaint);
-        // Medium circle
-        canvas.drawCircle(tailX - 8f, tailY + 16f, 4f, bubblePaint);
-        // Smallest circle
-        canvas.drawCircle(tailX - 12f, tailY + 22f, 2.5f, bubblePaint);
-
-        // Draw bubble outline
-        Paint outlinePaint = new Paint();
-        outlinePaint.setColor(Color.argb(alphaInt, 180, 180, 180));
-        outlinePaint.setStyle(Paint.Style.STROKE);
-        outlinePaint.setStrokeWidth(1.5f);
-        outlinePaint.setAntiAlias(true);
-        canvas.drawRoundRect(bubbleRect, 10f, 10f, outlinePaint);
-
-        // Draw circles outlines
-        canvas.drawCircle(tailX - 2f, tailY + 8f, 6f, outlinePaint);
-        canvas.drawCircle(tailX - 8f, tailY + 16f, 4f, outlinePaint);
-        canvas.drawCircle(tailX - 12f, tailY + 22f, 2.5f, outlinePaint);
-
-        // Draw text
-        canvas.drawText(thought, bubbleX, bubbleY, textPaint);
-
-        // Draw small thinking indicator (three dots that pulse)
-        if (alpha > 0.5f) {
-            float dotPhase = (float) ((Time.time * 3f) % 1f);
-            Paint dotPaint = new Paint();
-            dotPaint.setAntiAlias(true);
-
-            for (int i = 0; i < 3; i++) {
-                float dotAlpha = (float)Math.sin((dotPhase + i * 0.3f) * Math.PI);
-                dotAlpha = Math.max(0.3f, dotAlpha);
-                dotPaint.setColor(Color.argb((int)(dotAlpha * alphaInt * 0.5f), 100, 100, 100));
-
-                float dotX = bubbleRight - 20f + i * 6f;
-                float dotY = bubbleTop + 5f;
-                canvas.drawCircle(dotX, dotY, 2f, dotPaint);
-            }
+        float baseline = thoughtRect.top + THOUGHT_PADDING + THOUGHT_TEXT_SIZE - 3f;
+        for (String line : thoughtLines) {
+            canvas.drawText(line, thoughtRect.left + THOUGHT_PADDING, baseline, thoughtTextPaint);
+            baseline += THOUGHT_LINE_HEIGHT;
         }
     }
 

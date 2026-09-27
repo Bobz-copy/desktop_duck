@@ -61,8 +61,8 @@ public class OpenAiCompatBackendTest {
     public void setUp() throws IOException {
         server = new MockWebServer();
         server.start();
-        String url = server.url("/v1").toString();
-        baseUrl = url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
+        // Dirección literal: el backend solo habla sin cifrar con la red local
+        baseUrl = "http://127.0.0.1:" + server.getPort() + "/v1";
     }
 
     @After
@@ -228,9 +228,16 @@ public class OpenAiCompatBackendTest {
     }
 
     @Test
+    public void plainHttp_isOnlyAllowedTowardsTheLocalNetwork() {
+        assertTrue(new OpenAiCompatBackend("http://192.168.1.20:11434/v1", "m", "").isAvailable());
+        assertFalse(new OpenAiCompatBackend("http://api.example.com/v1", "m", "").isAvailable());
+        assertFalse(new OpenAiCompatBackend("http://8.8.8.8/v1", "m", "").isAvailable());
+    }
+
+    @Test
     public void isAvailable_requiresHttpSchemeAndModel() {
         assertFalse(new OpenAiCompatBackend("ftp://host/v1", "m", "").isAvailable());
-        assertFalse(new OpenAiCompatBackend("http://host/v1", " ", "").isAvailable());
+        assertFalse(new OpenAiCompatBackend("https://host/v1", " ", "").isAvailable());
         assertTrue(new OpenAiCompatBackend("https://host/v1", "m", "").isAvailable());
     }
 

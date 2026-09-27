@@ -37,6 +37,7 @@ public final class PromptBuilder {
                 .userPrompt(buildUserPrompt(pet, trigger, memories))
                 .maxTokens(isLongForm ? DIARY_MAX_TOKENS : LlmRequest.DEFAULT_MAX_TOKENS)
                 .jsonExpected(true)
+                .tag(trigger.kind.name())
                 .build();
     }
 

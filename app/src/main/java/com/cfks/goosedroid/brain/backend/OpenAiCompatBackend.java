@@ -88,8 +88,11 @@ public class OpenAiCompatBackend implements LlmBackend {
 
     @Override
     public boolean isAvailable() {
-        return !baseUrl.isEmpty() && !model.isEmpty()
-                && (baseUrl.startsWith("http://") || baseUrl.startsWith("https://"));
+        if (baseUrl.isEmpty() || model.isEmpty()) return false;
+        if (baseUrl.startsWith("https://")) return true;
+        // Sin cifrado solo hacia la red local: el estado de la mascota y lo que
+        // escribe el humano no viajan en claro por internet.
+        return baseUrl.startsWith("http://") && LocalNetwork.isLocalUrl(baseUrl);
     }
 
     @Override

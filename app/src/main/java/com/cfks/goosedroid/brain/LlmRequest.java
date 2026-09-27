@@ -14,8 +14,11 @@ public final class LlmRequest {
     public final float temperature;
     /** true si la respuesta debe ser un objeto JSON. */
     public final boolean isJsonExpected;
+    /** Motivo del pedido, para backends que no leen el prompt (plantillas). */
+    public final String tag;
 
     private LlmRequest(Builder builder) {
+        this.tag = builder.tag;
         this.systemPrompt = builder.systemPrompt;
         this.userPrompt = builder.userPrompt;
         this.maxTokens = builder.maxTokens;
@@ -33,6 +36,12 @@ public final class LlmRequest {
         private int maxTokens = DEFAULT_MAX_TOKENS;
         private float temperature = DEFAULT_TEMPERATURE;
         private boolean isJsonExpected = true;
+        private String tag = "";
+
+        public Builder tag(String value) {
+            this.tag = value != null ? value : "";
+            return this;
+        }
 
         public Builder systemPrompt(String value) {
             this.systemPrompt = value != null ? value : "";

@@ -400,6 +400,8 @@ public class TheGoose implements
         // Apply initial size multiplier
         DrawScale = 2.5f * com.cfks.goosedroid.GooseEvolution.getSizeMultiplier();
 
+        com.cfks.goosedroid.brain.BrainController.start(ctx);
+
         // Initialize new systems
         GooseSystemReactions.init(ctx);
         GooseEasterEggs.init(ctx);
@@ -502,6 +504,7 @@ public class TheGoose implements
         if (touchHandler != null) {
             touchHandler.cancelTouch();
         }
+        com.cfks.goosedroid.brain.BrainController.stop();
         GooseEasterEggs.deactivateMode();
         MiniGames.cancelGame();
         Sound.StopMusic();
@@ -1140,23 +1143,60 @@ public class TheGoose implements
 
         // Generate periodic thoughts
         if (timeSinceThought >= nextThoughtTime && thoughtDisplayTime <= 0) {
-            GooseLLM.generateThought(ctx, thought -> {
-                if (thought != null && !thought.isEmpty()) {
-                    setThought(thought);
-                }
-            });
+            com.cfks.goosedroid.brain.BrainController.requestThought(
+                    com.cfks.goosedroid.brain.BrainTrigger.Kind.IDLE_THOUGHT, "");
             timeSinceThought = 0;
             nextThoughtTime = SamMath.RandomRange(THOUGHT_INTERVAL_MIN, THOUGHT_INTERVAL_MAX);
         }
+
+        com.cfks.goosedroid.brain.BrainController.onTick(deltaTime);
     }
 
     /**
      * Set a new thought to display.
      */
     public static void setThought(String thought) {
-        currentThought = thought;
-        thoughtDisplayTime = THOUGHT_DISPLAY_DURATION;
+        currentThought = thought != null ? thought : "";
+        // Las frases largas se quedan más tiempo en pantalla
+        thoughtDuration = Math.min(THOUGHT_MAX_DURATION,
+                THOUGHT_DISPLAY_DURATION + currentThought.length() * THOUGHT_SECONDS_PER_CHAR);
+        thoughtDisplayTime = thoughtDuration;
         timeSinceThought = 0;
+    }
+
+    private static final float THOUGHT_SECONDS_PER_CHAR = 0.06f;
+    private static final float THOUGHT_MAX_DURATION = 12f;
+    private static float thoughtDuration = THOUGHT_DISPLAY_DURATION;
+
+    // ============== ENTRADAS DEL CEREBRO ==============
+
+    /** true si el humano lo está tocando o hay un minijuego: no interrumpir. */
+    public static boolean isBusyWithHuman() {
+        if (touchHandler == null || ai == null) return true;
+        return touchHandler.isBeingPetted() || touchHandler.isBeingDragged()
+                || isMiniGamePlaying();
+    }
+
+    public static void requestTask(GooseTasks.GooseTask task) {
+        if (isRunning() && !isBusyWithHuman() && ai.getCurrentTask() != task) {
+            ai.setTask(task, false);
+        }
+    }
+
+    public static void requestEvent(GooseAI.RandomEvent event) {
+        if (isRunning() && !isBusyWithHuman()) {
+            ai.forceRandomEvent(event);
+        }
+    }
+
+    public static void showEmoji(String emoji) {
+        if (touchHandler != null && emoji != null && !emoji.isEmpty()) {
+            touchHandler.showEmoji(emoji);
+        }
+    }
+
+    public static String getCurrentTaskName() {
+        return ai != null ? ai.getCurrentTask().name() : "";
     }
 
     /**
@@ -1171,9 +1211,9 @@ public class TheGoose implements
      */
     public static float getThoughtAlpha() {
         if (thoughtDisplayTime <= 0) return 0f;
-        if (thoughtDisplayTime > THOUGHT_DISPLAY_DURATION - 0.5f) {
+        if (thoughtDisplayTime > thoughtDuration - 0.5f) {
             // Fade in
-            return (THOUGHT_DISPLAY_DURATION - thoughtDisplayTime) / 0.5f;
+            return (thoughtDuration - thoughtDisplayTime) / 0.5f;
         } else if (thoughtDisplayTime < 0.5f) {
             // Fade out
             return thoughtDisplayTime / 0.5f;
@@ -1792,12 +1832,8 @@ public class TheGoose implements
                 com.cfks.goosedroid.GooseEvolution.recordPet(ctx);  // Track for evolution
                 GooseEasterEggs.recordPet();
                 GooseDreams.recordPetReceived();
-                // Generate LLM response for petting
-                GooseLLM.generateResponse("acariciar al ganso", thought -> {
-                    if (thought != null && !thought.isEmpty()) {
-                        touchHandler.showEmoji(thought);
-                    }
-                });
+                com.cfks.goosedroid.brain.BrainController.requestThought(
+                        com.cfks.goosedroid.brain.BrainTrigger.Kind.PETTED, "");
                 break;
 
             case BOOP:
