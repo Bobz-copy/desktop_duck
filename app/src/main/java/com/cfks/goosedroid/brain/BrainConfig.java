@@ -25,6 +25,7 @@ public final class BrainConfig {
     private static final String KEY_LANGUAGE = "language";
     private static final String KEY_INTERVAL_SECONDS = "interval_seconds";
     private static final String KEY_VOICE_ENABLED = "voice_enabled";
+    private static final String KEY_GPU_ENABLED = "gpu_enabled";
     private static final String KEY_PREFIX_URL = "url_";
     private static final String KEY_PREFIX_MODEL = "model_";
     private static final String KEY_PREFIX_API_KEY = "api_key_";
@@ -66,6 +67,14 @@ public final class BrainConfig {
 
     public void setIntervalSeconds(int seconds) {
         prefs.edit().putInt(KEY_INTERVAL_SECONDS, seconds).apply();
+    }
+
+    public boolean isGpuEnabled() {
+        return prefs.getBoolean(KEY_GPU_ENABLED, false);
+    }
+
+    public void setGpuEnabled(boolean enabled) {
+        prefs.edit().putBoolean(KEY_GPU_ENABLED, enabled).apply();
     }
 
     public boolean isVoiceEnabled() {

@@ -103,13 +103,14 @@ public final class BrainController {
     }
 
     private static void rebuildBrain() {
-        LlmBackend primary = BackendCatalog.create(config);
+        LlmBackend primary = BackendCatalog.create(appContext, config);
         LlmBackend fallback = new TemplateBackend(BrainController::templatePhrase);
 
         brain = new GooseBrain(primary, fallback, new PromptBuilder(config.getLanguage()),
                 memory, mainHandler::post, android.os.SystemClock::elapsedRealtime);
         brain.setMinIntervalMs(primary == null
                 ? TEMPLATE_MIN_INTERVAL_MS : config.getIntervalSeconds() * 1000L);
+        Log.i(TAG, "Cerebro: " + (primary != null ? primary.getId() : TemplateBackend.ID));
         brain.setListener(new GooseBrain.Listener() {
             @Override
             public void onIntent(BrainIntent intent, BrainTrigger trigger, String backendId) {

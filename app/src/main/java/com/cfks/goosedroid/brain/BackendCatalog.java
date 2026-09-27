@@ -1,6 +1,12 @@
 package com.cfks.goosedroid.brain;
 
+import android.content.Context;
+
+import com.cfks.goosedroid.brain.backend.LiteRtBackend;
 import com.cfks.goosedroid.brain.backend.OpenAiCompatBackend;
+import com.cfks.goosedroid.brain.model.LocalModel;
+import com.cfks.goosedroid.brain.model.LocalModelCatalog;
+import com.cfks.goosedroid.brain.model.ModelDownloads;
 import com.cfks.goosedroid.brain.backend.TemplateBackend;
 
 import java.util.ArrayList;
@@ -21,6 +27,8 @@ public final class BackendCatalog {
     private static final String GEMINI_URL =
             "https://generativelanguage.googleapis.com/v1beta/openai";
     private static final String DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-lite";
+    private static final String DEFAULT_LOCAL_MODEL = "lfm25_12b";
+    private static final String LITERT_CACHE_DIRECTORY = "litert";
 
     /** Descripción de un tipo de backend para la pantalla de ajustes. Inmutable. */
     public static final class Entry {
@@ -31,11 +39,21 @@ public final class BackendCatalog {
         public final boolean needsUrl;
         public final boolean needsModel;
         public final boolean needsApiKey;
+        /** true si piensa con un modelo descargado al teléfono. */
+        public final boolean needsLocalModel;
         public final String defaultUrl;
         public final String defaultModel;
 
         Entry(String id, String title, String summary, boolean isRemote, boolean needsUrl,
               boolean needsModel, boolean needsApiKey, String defaultUrl, String defaultModel) {
+            this(id, title, summary, isRemote, needsUrl, needsModel, needsApiKey, false,
+                    defaultUrl, defaultModel);
+        }
+
+        Entry(String id, String title, String summary, boolean isRemote, boolean needsUrl,
+              boolean needsModel, boolean needsApiKey, boolean needsLocalModel,
+              String defaultUrl, String defaultModel) {
+            this.needsLocalModel = needsLocalModel;
             this.id = id;
             this.title = title;
             this.summary = summary;
@@ -58,6 +76,10 @@ public final class BackendCatalog {
         entries.add(new Entry(TemplateBackend.ID, "Plantillas",
                 "Frases predefinidas. Sin modelo, sin red, sin gasto de batería.",
                 false, false, false, false, "", ""));
+        entries.add(new Entry(LiteRtBackend.ID, "Modelo en el teléfono",
+                "Un modelo descargado al teléfono. Privado y sin conexión; usa más "
+                        + "batería mientras piensa.",
+                false, false, false, false, true, "", DEFAULT_LOCAL_MODEL));
         entries.add(new Entry(ID_OLLAMA, "Ollama en mi red",
                 "Un modelo corriendo en tu PC. Gratis y privado dentro de tu red.",
                 true, true, true, false, DEFAULT_OLLAMA_URL, DEFAULT_OLLAMA_MODEL));
@@ -75,6 +97,13 @@ public final class BackendCatalog {
         return ENTRIES;
     }
 
+    /** El modelo local elegido, o el primero del catálogo si el guardado ya no existe. */
+    public static LocalModel getSelectedLocalModel(BrainConfig config) {
+        LocalModel model = LocalModelCatalog.find(
+                config.getModel(LiteRtBackend.ID, DEFAULT_LOCAL_MODEL));
+        return model != null ? model : LocalModelCatalog.getModels().get(0);
+    }
+
     public static Entry find(String backendId) {
         for (Entry entry : ENTRIES) {
             if (entry.id.equals(backendId)) return entry;
@@ -86,9 +115,20 @@ public final class BackendCatalog {
      * @return el backend configurado, o null si el elegido es el de plantillas
      *         (que ya es el respaldo del cerebro)
      */
-    public static LlmBackend create(BrainConfig config) {
+    public static LlmBackend create(Context context, BrainConfig config) {
         Entry entry = find(config.getBackendId());
         if (TemplateBackend.ID.equals(entry.id)) return null;
+
+        if (entry.needsLocalModel) {
+            LocalModel model = getSelectedLocalModel(config);
+            java.io.File cacheDir = new java.io.File(
+                    context.getApplicationContext().getCacheDir(), LITERT_CACHE_DIRECTORY);
+            if (!cacheDir.exists() && !cacheDir.mkdirs()) {
+                cacheDir = context.getApplicationContext().getCacheDir();
+            }
+            return new LiteRtBackend(ModelDownloads.getFile(context, model), cacheDir,
+                    config.isGpuEnabled());
+        }
 
         String url = entry.needsUrl ? config.getUrl(entry.id, entry.defaultUrl) : entry.defaultUrl;
         String model = config.getModel(entry.id, entry.defaultModel);
