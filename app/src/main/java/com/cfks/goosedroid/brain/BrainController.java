@@ -169,8 +169,10 @@ public final class BrainController {
             GooseLLM.generateResponse("drag", capture);
         } else if (BrainTrigger.Kind.GREETING.name().equals(tag)) {
             GooseLLM.generateResponse("hello", capture);
-        } else if (BrainTrigger.Kind.DIARY.name().equals(tag)) {
-            // Un diario hecho con plantillas no aporta nada: mejor no escribirlo
+        } else if (BrainTrigger.Kind.DIARY.name().equals(tag)
+                || BrainTrigger.Kind.NOTE.name().equals(tag)) {
+            // Un diario o una nota hechos con una frase suelta no aportan nada: el
+            // diario no se escribe y la nota queda con uno de los textos incluidos
             return null;
         } else {
             GooseLLM.generateThought(appContext, capture);
@@ -391,7 +393,7 @@ public final class BrainController {
         }
 
         if (trigger.kind == BrainTrigger.Kind.NOTE) {
-            if (intent.hasSpeech()) {
+            if (intent.hasSpeech() && !TemplateBackend.ID.equals(backendId)) {
                 com.cfks.goosedroid.GooseDesktop.GooseNotes.offerText(intent.say);
             }
             return;

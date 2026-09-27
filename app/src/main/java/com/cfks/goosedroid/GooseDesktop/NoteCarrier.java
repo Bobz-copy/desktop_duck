@@ -14,7 +14,10 @@ final class NoteCarrier {
 
     /** Distancia entre el ganso y el centro de la nota mientras la arrastra. */
     static final float CARRY_DISTANCE = 70f;
-    static final float LIFETIME_SECONDS = 30f;
+    /** Tiempo en pantalla: más largo cuanto más texto hay para leer. */
+    static final float MIN_LIFETIME_SECONDS = 20f;
+    static final float MAX_LIFETIME_SECONDS = 60f;
+    static final float SECONDS_PER_CHAR = 0.2f;
     static final float FADE_SECONDS = 3f;
 
     private State state = State.NONE;
@@ -24,6 +27,7 @@ final class NoteCarrier {
     private float centerX = 0f;
     private float centerY = 0f;
     private float age = 0f;
+    private float lifetime = MIN_LIFETIME_SECONDS;
 
     State getState() {
         return state;
@@ -86,6 +90,7 @@ final class NoteCarrier {
         centerY = clamp(centerY, halfHeight, worldHeight - halfHeight);
         state = State.PLACED;
         age = 0f;
+        lifetime = lifetimeFor(text);
     }
 
     void update(float deltaTime, Vector2 goosePosition) {
@@ -93,7 +98,7 @@ final class NoteCarrier {
             follow(goosePosition);
         } else if (state == State.PLACED) {
             age += deltaTime;
-            if (age >= LIFETIME_SECONDS) {
+            if (age >= lifetime) {
                 state = State.NONE;
             }
         }
@@ -105,11 +110,20 @@ final class NoteCarrier {
             case CARRIED:
                 return 1f;
             case PLACED:
-                float remaining = LIFETIME_SECONDS - age;
+                float remaining = lifetime - age;
                 return remaining >= FADE_SECONDS ? 1f : Math.max(0f, remaining / FADE_SECONDS);
             default:
                 return 0f;
         }
+    }
+
+    static float lifetimeFor(String text) {
+        float seconds = MIN_LIFETIME_SECONDS + text.length() * SECONDS_PER_CHAR;
+        return Math.min(MAX_LIFETIME_SECONDS, seconds);
+    }
+
+    float getLifetime() {
+        return lifetime;
     }
 
     void reset() {

@@ -37,13 +37,23 @@ public class NoteCarrierTest {
         carrier.place(WORLD_WIDTH, WORLD_HEIGHT, HALF_WIDTH, HALF_HEIGHT);
         assertEquals(NoteCarrier.State.PLACED, carrier.getState());
 
-        carrier.update(NoteCarrier.LIFETIME_SECONDS - 1f, new Vector2(0f, 0f));
+        carrier.update(carrier.getLifetime() - 1f, new Vector2(0f, 0f));
         float fading = carrier.getAlpha();
         assertTrue(fading > 0f && fading < 1f);
 
         carrier.update(2f, new Vector2(0f, 0f));
         assertEquals(NoteCarrier.State.NONE, carrier.getState());
         assertEquals(0f, carrier.getAlpha(), 0.001f);
+    }
+
+    @Test
+    public void lifetime_growsWithTheTextUpToAMaximum() {
+        assertEquals(NoteCarrier.MIN_LIFETIME_SECONDS + 4 * NoteCarrier.SECONDS_PER_CHAR,
+                NoteCarrier.lifetimeFor("HONK"), 0.001f);
+        StringBuilder longText = new StringBuilder();
+        for (int i = 0; i < 1000; i++) longText.append('x');
+        assertEquals(NoteCarrier.MAX_LIFETIME_SECONDS,
+                NoteCarrier.lifetimeFor(longText.toString()), 0.001f);
     }
 
     @Test
