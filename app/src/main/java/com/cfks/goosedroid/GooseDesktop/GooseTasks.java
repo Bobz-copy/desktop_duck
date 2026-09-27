@@ -47,9 +47,9 @@ public class GooseTasks {
         public final float MaxPauseTime = 2f;
         public final float GoodEnoughDistance = 20f;
 
-        public float wanderingStartTime;
+        public double wanderingStartTime;
         public float wanderingDuration;
-        public float pauseStartTime;
+        public double pauseStartTime;
         public float pauseDuration;
 
         public static float getRandomPauseDuration() {
@@ -74,8 +74,8 @@ public class GooseTasks {
     public static class NabMouseTask {
         public Stage currentStage;
         public Vector2 dragToPoint;
-        public float grabbedOriginalTime;
-        public float chaseStartTime;
+        public double grabbedOriginalTime;
+        public double chaseStartTime;
         public Vector2 originalVectorToMouse;
 
         public final float MouseGrabDistance = 15f;
@@ -100,7 +100,7 @@ public class GooseTasks {
     public static class CollectWindowTask {
         public Stage stage = Stage.WalkingOffscreen;
         public float secsToWait;
-        public float waitStartTime;
+        public double waitStartTime;
         public ScreenDirection screenDirection;
         public Vector2 windowOffsetToBeak;
 
@@ -126,8 +126,8 @@ public class GooseTasks {
      */
     public static class TrackMudTask {
         public final float DurationToRunAmok = 2f;
-        public float nextDirChangeTime;
-        public float timeToStopRunning;
+        public double nextDirChangeTime;
+        public double timeToStopRunning;
         public Stage stage = Stage.DecideToRun;
 
         public static float getDirChangeInterval() {

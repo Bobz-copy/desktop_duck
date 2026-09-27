@@ -170,6 +170,72 @@ F0 → F1 → F2 → F3 → F4 → F5 → F6 → F7
 
 La Parte B arranca cuando termina la Fase 4: el cerebro necesita un servicio que sobreviva y un guardado que funcione.
 
-## Investigación de LLM
+## Investigación de LLM (2026-09-27)
 
-*(pendiente: se completa con los resultados de la investigación en curso)*
+Datos verificados contra Maven, GitHub y Hugging Face salvo donde se indica.
+
+### Motores en el teléfono
+
+| Motor | Versión | Desde Java | JSON forzado | Requisito | Decisión |
+|---|---|---|---|---|---|
+| **LiteRT-LM** (`com.google.ai.edge.litertlm:litertlm-android`) | 0.17.1 (16-09-2026) | Sí, con callbacks | Sí (`ResponseFormat.json`) | Compilar con **JDK 21**; minSdk 24; trae arm64-v8a y x86_64 | **Primer motor on-device** |
+| **llama.cpp** con build propio (NDK + CMake + JNI) | tag fijo | Sí (JNI propio) | Sí (gramáticas GBNF) | Upstream usa NDK 29; compatibilidad con NDK 26.3 sin confirmar | **Segundo motor**: abre todo el ecosistema GGUF |
+| Llamatik (wrapper de llama.cpp) | 1.10.1 | Sí | Sí | minSdk 26 y JDK 21 | Atajo si el build propio se complica |
+| MediaPipe LLM Inference | 0.10.35 | Sí | No | — | Descartado: solo mantenimiento |
+| Gemini Nano (ML Kit Prompt API) | 1.0.0-beta4 | Sí | — | AICore | **Descartado**: el POCO F5 Pro no está soportado y la API bloquea el uso fuera de primer plano |
+
+### Modelos candidatos (formato `.litertlm`)
+
+| Modelo | Tamaño | Licencia | Requiere cuenta HF | Español declarado | Uso |
+|---|---|---|---|---|---|
+| Qwen3 0.6B (nothink, int4) | 347 MB | Apache-2.0 | No | No indicado | Emulador y teléfonos modestos |
+| **LFM2.5 1.2B Instruct (int4)** | 736 MB | LFM 1.0 (gratis bajo USD 10 M de ingresos) | No | Sí | **Por defecto en el POCO F5 Pro** |
+| Qwen3 1.7B | 977 MB | Apache-2.0 | No | No indicado | Alternativa 100 % Apache |
+| Gemma 4 E2B (GPU) | 2,0 GB | Apache-2.0 | No | Sin dato | Opción de calidad alta |
+| Gemma 3 1B / Llama 3.2 1B | 584 / 964 MB | gemma / llama3.2 | **Sí** | — | No como defecto: piden token |
+
+No hay benchmarks publicados de calidad en español para modelos de este tamaño: se mide con prompts reales del ganso antes de fijar el defecto.
+
+### Rendimiento esperado en el POCO F5 Pro
+
+- No hay mediciones publicadas para este equipo. Referencias cercanas: Snapdragon 8 Gen 1 con un modelo de 1B en Q4 da ~12 tokens/s en CPU con llama.cpp; en la GPU Adreno 730 con llama.cpp cae a ~1,6.
+- Estimación propia: 10 a 25 tokens/s en CPU para 1B. Una frase de 20-30 tokens sale en 1 a 3 segundos.
+- No hay binarios NPU para el 8+ Gen 1. Con llama.cpp conviene CPU limitada a los núcleos grandes; con LiteRT-LM se prueba GPU en el equipo real.
+- RAM: ~1 GB para un modelo de 1B. Sobra con 12 GB, pero HyperOS mata procesos con agresividad: el modelo se carga bajo demanda y se libera tras inactividad.
+
+### Backends remotos
+
+| Backend | Cómo | Nota |
+|---|---|---|
+| **Compatible con OpenAI** | `POST {base}/chat/completions`, streaming SSE | Cubre Ollama (`http://<ip>:11434/v1/`), LM Studio, OpenRouter, Groq. **Se implementa primero**: Java puro, sin tocar el build, se prueba desde el emulador contra el Ollama de la PC (`10.0.2.2`) |
+| Gemini API | Tiene endpoint compatible con OpenAI | Reutiliza el backend anterior. En el tier gratuito Google usa el contenido para mejorar sus productos |
+| Claude (Anthropic) | Messages API | Backend propio |
+
+Cambios que exigen: permiso `INTERNET` y permitir HTTP sin cifrar solo hacia la red local.
+
+### Restricciones de Android que condicionan el diseño
+
+- El servicio del overlay usa el tipo `specialUse` (sin límite de tiempo). Publicar en Google Play exigiría declararlo con un video de demostración.
+- Descarga de modelos: reanudable, con verificación de tamaño, a un archivo `.part` que se renombra al terminar. Se guardan en `getExternalFilesDir`, que además permite cargarlos por `adb push`.
+- Una inferencia a la vez, con cancelación. Sin inferencia con pantalla apagada ni batería baja.
+
+### Referencias de producto
+
+Mascotas con IA existentes (Sweekar, AIdorable, Mochi Crew, AI Tamago) coinciden en cuatro funciones: memoria de lo que pasó, diario escrito por la mascota, etapas de crecimiento y que la mascota inicie la conversación. Todas entran en la Fase 12 sin permisos extra.
+
+Se descarta usar `AccessibilityService`: Google Play prohíbe usarla para que una app actúe de forma autónoma, y es la función más invasiva de todas.
+
+### Orden de implementación de la Parte B
+
+1. Núcleo + plantillas como respaldo.
+2. Backend compatible con OpenAI (Ollama) → iterar prompts y esquema JSON.
+3. LiteRT-LM con JDK 21.
+4. Claude y Gemini.
+5. llama.cpp con build propio.
+
+### Pendiente de confirmar al implementar
+
+- Que AGP 8.12 con JDK 21 procese el AAR de LiteRT-LM.
+- Que LiteRT-LM corra en el emulador x86_64 en CPU.
+- Que llama.cpp actual compile con NDK 26.3.
+- Tokens/s reales en el POCO F5 Pro.

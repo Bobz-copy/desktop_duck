@@ -37,11 +37,11 @@ public class GooseAI {
      * Stores memory of recent events.
      */
     public static class Memory {
-        public float lastPetTime = 0;
-        public float lastFeedTime = 0;
-        public float lastPlayTime = 0;
-        public float lastSleepTime = 0;
-        public float lastHonkTime = 0;
+        public double lastPetTime = 0;
+        public double lastFeedTime = 0;
+        public double lastPlayTime = 0;
+        public double lastSleepTime = 0;
+        public double lastHonkTime = 0;
         public int petCountToday = 0;
         public int feedCountToday = 0;
         public int playCountToday = 0;
@@ -160,10 +160,10 @@ public class GooseAI {
     private boolean overrideExtendNeck = false;
 
     // Pet state timers
-    private float sleepStartTime = 0;
-    private float eatStartTime = 0;
-    private float playStartTime = 0;
-    private float happyStartTime = 0;
+    private double sleepStartTime = 0;
+    private double eatStartTime = 0;
+    private double playStartTime = 0;
+    private double happyStartTime = 0;
 
     // Durations (affected by personality)
     private float sleepDuration = 5f;
@@ -244,7 +244,7 @@ public class GooseAI {
         return overrideExtendNeck;
     }
 
-    public float getSleepStartTime() {
+    public double getSleepStartTime() {
         return sleepStartTime;
     }
 
@@ -1065,7 +1065,7 @@ public class GooseAI {
     // ============== TASK IMPLEMENTATIONS ==============
 
     // Wander state for expressions
-    private float lastWanderExpressionTime = 0;
+    private double lastWanderExpressionTime = 0;
     private float nextWanderExpressionInterval = 2f;
     private int wanderActionCount = 0;
 
@@ -1386,7 +1386,7 @@ public class GooseAI {
             playDuration = 3f + PetNeeds.get().energy * 0.02f;
         }
 
-        float elapsed = Time.time - playStartTime;
+        float elapsed = (float) (Time.time - playStartTime);
         float angle = elapsed * 180f;
         physics.setTargetPos(Vector2.add(
             physics.getPosition(),
@@ -1465,7 +1465,7 @@ public class GooseAI {
             Sound.PlayHappy();
         }
 
-        float elapsed = Time.time - happyStartTime;
+        float elapsed = (float) (Time.time - happyStartTime);
 
         // Varied happy actions
         if (elapsed > 0.5f && happyActionCount == 0) {
@@ -1613,7 +1613,7 @@ public class GooseAI {
     private static final float OFFSCREEN_EDGE_INSET = 24f;
     private static final float EDGE_REACHED_DISTANCE = 12f;
     private static final float STAGE_TIMEOUT_SECONDS = 12f;
-    private float stageStartTime = 0f;
+    private double stageStartTime = 0f;
 
     private boolean hasReachedTargetOrTimedOut(GoosePhysics physics) {
         return Vector2.Distance(physics.getPosition(), physics.getTargetPos()) < EDGE_REACHED_DISTANCE

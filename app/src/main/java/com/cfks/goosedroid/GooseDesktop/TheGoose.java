@@ -331,6 +331,9 @@ public class TheGoose implements
     public static void Init(Context context, Canvas cvs, ConfigureActivity config) {
         lifecycleState = LifecycleState.INITIALIZING;
 
+        // Cada encendido arranca con el reloj de juego en cero
+        Time.reset();
+
         canvas = cvs;
         ctx = context;
         ca = config;

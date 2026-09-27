@@ -18,5 +18,5 @@ public class FootMark
 	public Vector2 position;
 
 	// Token: 0x04000053 RID: 83
-	public float time;
+	public double time;
 }

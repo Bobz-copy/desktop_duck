@@ -346,7 +346,7 @@ public class BehaviorTree {
      */
     public static class Cooldown extends DecoratorNode {
         private float cooldownTime;
-        private float lastExecutionTime = -999f;
+        private double lastExecutionTime = -999f;
 
         public Cooldown(Node child, float cooldownSeconds) {
             super("Cooldown", child);
@@ -355,7 +355,7 @@ public class BehaviorTree {
 
         @Override
         public Status execute(Blackboard blackboard) {
-            float currentTime = blackboard.getFloat("time", 0f);
+            double currentTime = blackboard.getDouble("time", 0.0);
 
             if (currentTime - lastExecutionTime < cooldownTime) {
                 lastStatus = Status.FAILURE;
@@ -449,7 +449,7 @@ public class BehaviorTree {
      */
     public static class WaitAction extends ActionNode {
         private float duration;
-        private float startTime = -1f;
+        private double startTime = -1f;
 
         public WaitAction(float seconds) {
             super("Wait");
@@ -458,7 +458,7 @@ public class BehaviorTree {
 
         @Override
         public Status execute(Blackboard blackboard) {
-            float currentTime = blackboard.getFloat("time", 0f);
+            double currentTime = blackboard.getDouble("time", 0.0);
 
             if (startTime < 0) {
                 startTime = currentTime;
@@ -505,6 +505,14 @@ public class BehaviorTree {
             Object val = data.get(key);
             if (val instanceof Number) {
                 return ((Number) val).floatValue();
+            }
+            return defaultValue;
+        }
+
+        public double getDouble(String key, double defaultValue) {
+            Object val = data.get(key);
+            if (val instanceof Number) {
+                return ((Number) val).doubleValue();
             }
             return defaultValue;
         }

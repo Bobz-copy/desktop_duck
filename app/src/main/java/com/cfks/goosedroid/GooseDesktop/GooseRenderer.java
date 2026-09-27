@@ -85,10 +85,10 @@ public class GooseRenderer {
      */
     public static class TrailPoint {
         public Vector2 position;
-        public float time;
+        public double time;
         public float alpha;
 
-        public TrailPoint(Vector2 pos, float time) {
+        public TrailPoint(Vector2 pos, double time) {
             this.position = new Vector2(pos.x, pos.y);
             this.time = time;
             this.alpha = 1f;
@@ -115,7 +115,7 @@ public class GooseRenderer {
 
     private List<Particle> particles;
     private List<TrailPoint> trailPoints;
-    private float lastTrailTime = 0;
+    private double lastTrailTime = 0;
     private float glowPhase = 0;
     private boolean showShadow = true;
 
@@ -506,7 +506,7 @@ public class GooseRenderer {
 
         // Update alpha based on age
         for (TrailPoint tp : trailPoints) {
-            float age = Time.time - tp.time;
+            float age = (float) (Time.time - tp.time);
             tp.alpha = Math.max(0, 1f - (age / TRAIL_FADE_TIME));
         }
     }
@@ -1816,8 +1816,8 @@ public class GooseRenderer {
 
         for (int i = 0; i < footMarks.length; i++) {
             if (footMarks[i] != null && footMarks[i].time != 0.0f) {
-                float fadeStart = footMarks[i].time + 8.5f;
-                float fadeProgress = SamMath.Clamp(Time.time - fadeStart, 0f, 1f);
+                double fadeStart = footMarks[i].time + 8.5f;
+                float fadeProgress = SamMath.Clamp((float) (Time.time - fadeStart), 0f, 1f);
                 float radius = SamMath.Lerp(3f, 0f, fadeProgress);
                 fillCircleFromCenter(canvas, mudPaint, footMarks[i].position, (int) radius);
             }
@@ -1956,7 +1956,7 @@ public class GooseRenderer {
             }
         } else {
             // Subtle random eye movement
-            float time = Time.time;
+            float time = Time.timeF();
             pupilOffsetX = (float)Math.sin(time * 0.5f + (isRight ? 1f : 0f)) * radius * 0.1f;
             pupilOffsetY = (float)Math.cos(time * 0.3f) * radius * 0.05f * vScale;
         }
@@ -2168,7 +2168,7 @@ public class GooseRenderer {
         int tearColor = Color.argb((int)(tearAmount * 180), 135, 206, 250);
 
         // Animated tear position
-        float tearPhase = (Time.time * 2f) % 1f;
+        float tearPhase = (float) ((Time.time * 2f) % 1f);
         float tearY = tearPhase * 15f * scale;
 
         // Left eye tear
@@ -2178,7 +2178,7 @@ public class GooseRenderer {
         );
 
         // Right eye tear (slightly offset timing)
-        float rightPhase = ((Time.time * 2f) + 0.5f) % 1f;
+        float rightPhase = (float) (((Time.time * 2f) + 0.5f) % 1f);
         float rightTearY = rightPhase * 15f * scale;
         Vector2 rightTearPos = new Vector2(
             rig.rightEyePos.x - 1f * scale,
@@ -2528,7 +2528,7 @@ public class GooseRenderer {
 
         // Draw small thinking indicator (three dots that pulse)
         if (alpha > 0.5f) {
-            float dotPhase = (Time.time * 3f) % 1f;
+            float dotPhase = (float) ((Time.time * 3f) % 1f);
             Paint dotPaint = new Paint();
             dotPaint.setAntiAlias(true);
 
@@ -2551,7 +2551,7 @@ public class GooseRenderer {
         textPaint.setColor(0xFF6666FF);
         textPaint.setAntiAlias(true);
 
-        float elapsed = Time.time - ai.getSleepStartTime();
+        float elapsed = (float) (Time.time - ai.getSleepStartTime());
         float yOffset = (elapsed % 1f) * 20f;
 
         textPaint.setTextSize(18f);
@@ -2712,7 +2712,7 @@ public class GooseRenderer {
         Paint sparklePaint = new Paint();
         sparklePaint.setAntiAlias(true);
 
-        float time = Time.time * 2f;
+        float time = Time.timeF() * 2f;
 
         for (int i = 0; i < 8; i++) {
             float angle = (float)(i * Math.PI / 4 + time * 0.5f);

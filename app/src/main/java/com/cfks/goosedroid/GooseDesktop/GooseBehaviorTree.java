@@ -18,7 +18,7 @@ public class GooseBehaviorTree {
 
     // Current action tracking
     private String currentBehavior = "Idle";
-    private float behaviorStartTime = 0f;
+    private double behaviorStartTime = 0f;
 
     private static final float CRITICAL_COOLDOWN_SECONDS = 12f;
     private static final String[] PET_STAGE_EMOJIS = {":)", "<3", "<3<3", "BLISS!"};
