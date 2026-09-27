@@ -794,6 +794,21 @@ public class TheGoose implements
     /**
      * Render the goose.
      */
+    public static boolean isRunning() {
+        return lifecycleState == LifecycleState.RUNNING;
+    }
+
+    /**
+     * Render usando el canvas del frame actual. El canvas de onDraw no está
+     * garantizado que sea el mismo objeto entre frames.
+     */
+    public static void Render(Canvas frameCanvas) {
+        if (frameCanvas != null) {
+            canvas = frameCanvas;
+        }
+        Render();
+    }
+
     public static void Render() {
         if (lifecycleState != LifecycleState.RUNNING) return;
 

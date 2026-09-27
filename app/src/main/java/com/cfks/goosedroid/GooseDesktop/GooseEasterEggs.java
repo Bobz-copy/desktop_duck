@@ -85,8 +85,10 @@ public class GooseEasterEggs {
             unlockedSecrets.put(unlock, false);
         }
 
-        // Modo none siempre disponible
-        availableModes.add(SecretMode.NONE);
+        // Modo none siempre disponible (la lista es estática: no duplicar en cada init)
+        if (!availableModes.contains(SecretMode.NONE)) {
+            availableModes.add(SecretMode.NONE);
+        }
 
         lastInteractionTime = System.currentTimeMillis();
     }
@@ -346,17 +348,18 @@ public class GooseEasterEggs {
      * Activar modo secreto aleatorio de los disponibles.
      */
     public static void activateRandomMode() {
-        if (availableModes.size() <= 1) {
+        // Elegir sobre una lista filtrada: sin bucle que pueda no terminar.
+        java.util.List<SecretMode> selectable = new java.util.ArrayList<>();
+        for (SecretMode mode : availableModes) {
+            if (mode != SecretMode.NONE) {
+                selectable.add(mode);
+            }
+        }
+        if (selectable.isEmpty()) {
             return; // Solo NONE disponible
         }
 
-        // Elegir uno que no sea NONE
-        SecretMode newMode;
-        do {
-            newMode = availableModes.get(random.nextInt(availableModes.size()));
-        } while (newMode == SecretMode.NONE && availableModes.size() > 1);
-
-        activateMode(newMode);
+        activateMode(selectable.get(random.nextInt(selectable.size())));
     }
 
     /**

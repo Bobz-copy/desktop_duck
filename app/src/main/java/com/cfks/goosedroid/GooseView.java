@@ -29,6 +29,8 @@ public class GooseView extends View {
     private Runnable renderRunnable;
     private int frameRefreshRate;
     private boolean isRunning = false;
+    private static final int LOOP_ERROR_LOG_INTERVAL = 300;
+    private int loopErrorCount = 0;
 
     public static float DrawSize = 2.5f;  // Default size for better visibility
 
@@ -133,12 +135,32 @@ public class GooseView extends View {
             }
         }
 
+        // Tick y Render por separado: un fallo de lógica no debe dejar el frame en blanco.
         try {
             Time.TickTime();
             TheGoose.Tick();
-            TheGoose.Render();
         } catch (Exception e) {
-            Log.e(TAG, "Error during render tick", e);
+            logLoopError("Error during tick", e);
+        }
+
+        int saveCount = canvas.save();
+        try {
+            TheGoose.Render(canvas);
+        } catch (Exception e) {
+            logLoopError("Error during render", e);
+        } finally {
+            canvas.restoreToCount(saveCount);
+        }
+    }
+
+    /**
+     * Loguea errores del loop sin inundar logcat: el primero completo y luego
+     * uno cada LOOP_ERROR_LOG_INTERVAL.
+     */
+    private void logLoopError(String message, Exception e) {
+        loopErrorCount++;
+        if (loopErrorCount == 1 || loopErrorCount % LOOP_ERROR_LOG_INTERVAL == 0) {
+            Log.e(TAG, message + " (x" + loopErrorCount + ")", e);
         }
     }
 

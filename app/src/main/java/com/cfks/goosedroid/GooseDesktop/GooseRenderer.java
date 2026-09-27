@@ -879,7 +879,7 @@ public class GooseRenderer {
         // Create gradient shadow
         RadialGradient shadowGradient = new RadialGradient(
             position.x, position.y,
-            25f * TheGoose.DrawScale,
+            Math.max(1f, 25f * TheGoose.DrawScale),
             new int[]{0x44000000, 0x22000000, 0x00000000},
             new float[]{0f, 0.6f, 1f},
             Shader.TileMode.CLAMP

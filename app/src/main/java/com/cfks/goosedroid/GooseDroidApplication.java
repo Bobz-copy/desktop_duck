@@ -1,7 +1,6 @@
 package com.cfks.goosedroid;
 
 import android.app.Application;
-import android.content.ComponentCallbacks2;
 import android.content.res.Configuration;
 import android.os.Build;
 import android.util.Log;
@@ -21,7 +20,7 @@ import java.util.Locale;
  * Application class for GooseDroid.
  * Handles global crash reporting, memory management, and resource cleanup.
  */
-public class GooseDroidApplication extends Application implements ComponentCallbacks2 {
+public class GooseDroidApplication extends Application {
 
     private static final String TAG = "GooseDroidApp";
     private static GooseDroidApplication instance;
@@ -35,8 +34,9 @@ public class GooseDroidApplication extends Application implements ComponentCallb
         // Set up global crash handler
         setupCrashHandler();
 
-        // Register for memory callbacks
-        registerComponentCallbacks(this);
+        // Application ya recibe onTrimMemory/onLowMemory por sí misma. Registrarse
+        // además como callback hace que super.onTrimMemory() se llame a sí mismo
+        // hasta desbordar la pila.
 
         Log.i(TAG, "GooseDroid Application initialized");
     }
@@ -194,6 +194,9 @@ public class GooseDroidApplication extends Application implements ComponentCallb
      * Release non-critical resources to free memory.
      */
     private void releaseNonCriticalResources() {
+        if (com.cfks.goosedroid.GooseDesktop.TheGoose.isRunning()) {
+            return;
+        }
         try {
             // Stop background music to free audio resources
             Sound.StopMusic();
@@ -207,6 +210,10 @@ public class GooseDroidApplication extends Application implements ComponentCallb
      * Release all possible resources to free memory.
      */
     private void releaseAllResources() {
+        if (com.cfks.goosedroid.GooseDesktop.TheGoose.isRunning()) {
+            // El ganso sigue en pantalla: liberar el audio lo dejaría mudo.
+            return;
+        }
         try {
             // Stop all sounds
             Sound.StopMusic();
@@ -239,6 +246,5 @@ public class GooseDroidApplication extends Application implements ComponentCallb
     public void onTerminate() {
         super.onTerminate();
         cleanupResources();
-        unregisterComponentCallbacks(this);
     }
 }

@@ -3,6 +3,7 @@
 # verifica que el ganso se anima (dentro y fuera de la app) y cuenta excepciones.
 # Uso: tools/smoke.sh [directorio_de_salida]
 set -u
+export MSYS_NO_PATHCONV=1
 ADB="${ADB:-/c/Android/sdk/platform-tools/adb.exe}"
 PKG=com.cfks.goosedroid
 APK=app/build/outputs/apk/debug/app-debug.apk
@@ -19,13 +20,15 @@ sleep 3
 
 # Localizar el switch principal y encenderlo si está apagado
 "$ADB" shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
-NODE=$("$ADB" shell cat /sdcard/ui.xml | tr '>' '>\n' | grep 'id/GooseDroid"')
-CHECKED=$(echo "$NODE" | sed -E 's/.*checked="([^"]*)".*/\1/')
-read X1 Y1 X2 Y2 <<<"$(echo "$NODE" | sed -E 's/.*bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]".*/\1 \2 \3 \4/')"
+NODE=$("$ADB" shell cat /sdcard/ui.xml | grep -o '<node[^>]*id/GooseDroid"[^>]*>')
+CHECKED=$(echo "$NODE" | grep -o 'checked="[a-z]*"' | cut -d'"' -f2)
+read X1 Y1 X2 Y2 <<<"$(echo "$NODE" | grep -o 'bounds="[^"]*"' | tr -c '0-9' ' ')"
+[ -z "${X2:-}" ] && { echo "FALLO: no se encontró el switch principal"; exit 1; }
 if [ "$CHECKED" != "true" ]; then
   "$ADB" shell input tap $(( (X1+X2)/2 )) $(( (Y1+Y2)/2 ))
 fi
 sleep 4
+"$ADB" exec-out screencap -p > "$OUT/app.png"
 
 "$ADB" shell input keyevent KEYCODE_HOME
 sleep 3

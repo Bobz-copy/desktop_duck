@@ -289,7 +289,13 @@ public class GooseAI {
 
         // Run active event if any
         if (activeEvent != RandomEvent.NONE) {
-            runRandomEvent(deltaTime);
+            // El timer avanza acá: es el único camino que corre mientras hay evento.
+            eventTimer += deltaTime;
+            if (eventTimer >= eventDuration) {
+                endRandomEvent();
+            } else {
+                runRandomEvent(deltaTime);
+            }
             return;
         }
 
@@ -539,14 +545,6 @@ public class GooseAI {
     private void updateRandomEvents(float deltaTime) {
         // Update GooseLLM boredom tracking
         GooseLLM.updateBoredom(deltaTime);
-
-        if (activeEvent != RandomEvent.NONE) {
-            eventTimer += deltaTime;
-            if (eventTimer >= eventDuration) {
-                endRandomEvent();
-            }
-            return;
-        }
 
         nextEventCheck -= deltaTime;
         if (nextEventCheck <= 0) {
@@ -980,8 +978,15 @@ public class GooseAI {
     }
 
     private void endRandomEvent() {
-        if (activeEvent == RandomEvent.ZOOMIES) {
-            callback.getPhysics().setSpeed(GooseTasks.SpeedTier.Walk);
+        switch (activeEvent) {
+            case ZOOMIES:
+            case CHASE_INVISIBLE:
+            case MOONWALK:
+            case BELLY_FLOP:
+                callback.getPhysics().setSpeed(GooseTasks.SpeedTier.Walk);
+                break;
+            default:
+                break;
         }
         activeEvent = RandomEvent.NONE;
         eventTimer = 0;
@@ -1087,7 +1092,8 @@ public class GooseAI {
         if (taskWanderInfo.pauseStartTime > 0f) {
             if (Time.time - taskWanderInfo.pauseStartTime > taskWanderInfo.pauseDuration) {
                 taskWanderInfo.pauseStartTime = -1f;
-                float dist = GooseTasks.WanderTask.getRandomWalkTime() * physics.getCurrentSpeed();
+                // Velocidad máxima del tier, no la instantánea: tras la pausa esa es 0.
+                float dist = GooseTasks.WanderTask.getRandomWalkTime() * physics.getMaxSpeed();
 
                 // Occasionally visit favorite spots
                 if (memory.favoriteSpots.size() > 0 && Math.random() < 0.3f) {
@@ -1212,7 +1218,8 @@ public class GooseAI {
     }
 
     private void runNabMouse() {
-        // Not implemented for Android
+        // No implementado en Android: volver a pasear en vez de quedar trabado.
+        setTask(GooseTasks.GooseTask.Wander, false);
     }
 
     private void runCollectWindow() {
@@ -1222,7 +1229,7 @@ public class GooseAI {
 
         switch (taskCollectWindowInfo.stage) {
             case WalkingOffscreen:
-                if (Vector2.Distance(physics.getPosition(), physics.getTargetPos()) < 5f) {
+                if (hasReachedTargetOrTimedOut(physics)) {
                     taskCollectWindowInfo.secsToWait = GooseTasks.CollectWindowTask.getWaitTime();
                     taskCollectWindowInfo.waitStartTime = Time.time;
                     taskCollectWindowInfo.stage = GooseTasks.CollectWindowTask.Stage.WaitingToBringWindowBack;
@@ -1253,11 +1260,12 @@ public class GooseAI {
                             ));
                             break;
                     }
+                    stageStartTime = Time.time;
                     taskCollectWindowInfo.stage = GooseTasks.CollectWindowTask.Stage.DraggingWindowBack;
                 }
                 break;
             case DraggingWindowBack:
-                if (Vector2.Distance(physics.getPosition(), physics.getTargetPos()) < 5f) {
+                if (hasReachedTargetOrTimedOut(physics)) {
                     physics.setTargetPos(Vector2.add(
                         physics.getPosition(),
                         Vector2.multiply(Vector2.GetFromAngleDegrees(physics.getDirection() + 180f), 40f)
@@ -1282,7 +1290,7 @@ public class GooseAI {
                 taskTrackMudInfo.stage = GooseTasks.TrackMudTask.Stage.RunningOffscreen;
                 break;
             case RunningOffscreen:
-                if (Vector2.Distance(physics.getPosition(), physics.getTargetPos()) < 5f) {
+                if (hasReachedTargetOrTimedOut(physics)) {
                     physics.setTargetPos(new Vector2(
                         SamMath.RandomRange(0f, (float) screenWidth),
                         SamMath.RandomRange(0f, (float) screenHeight)
@@ -1600,7 +1608,20 @@ public class GooseAI {
 
     // ============== TASK MANAGEMENT ==============
 
+    // La física limita la posición al área visible, así que "fuera de pantalla"
+    // es el borde alcanzable, no una coordenada negativa.
+    private static final float OFFSCREEN_EDGE_INSET = 24f;
+    private static final float EDGE_REACHED_DISTANCE = 12f;
+    private static final float STAGE_TIMEOUT_SECONDS = 12f;
+    private float stageStartTime = 0f;
+
+    private boolean hasReachedTargetOrTimedOut(GoosePhysics physics) {
+        return Vector2.Distance(physics.getPosition(), physics.getTargetPos()) < EDGE_REACHED_DISTANCE
+            || Time.time - stageStartTime > STAGE_TIMEOUT_SECONDS;
+    }
+
     private GooseTasks.CollectWindowTask.ScreenDirection setTargetOffscreen(boolean canExitTop) {
+        stageStartTime = Time.time;
         GoosePhysics physics = callback.getPhysics();
         int screenWidth = callback.getScreenWidth();
         int screenHeight = callback.getScreenHeight();
@@ -1608,20 +1629,21 @@ public class GooseAI {
         int distToLeft = (int) physics.getPosition().x;
         GooseTasks.CollectWindowTask.ScreenDirection result =
             GooseTasks.CollectWindowTask.ScreenDirection.Left;
-        physics.setTargetPos(new Vector2(-50f,
+        physics.setTargetPos(new Vector2(OFFSCREEN_EDGE_INSET,
             SamMath.Lerp(physics.getPosition().y, (float)(screenHeight / 2), 0.4f)));
 
         if (distToLeft > screenWidth / 2) {
             distToLeft = screenWidth - (int) physics.getPosition().x;
             result = GooseTasks.CollectWindowTask.ScreenDirection.Right;
-            physics.setTargetPos(new Vector2((float)(screenWidth + 50),
+            physics.setTargetPos(new Vector2((float) screenWidth - OFFSCREEN_EDGE_INSET,
                 SamMath.Lerp(physics.getPosition().y, (float)(screenHeight / 2), 0.4f)));
         }
 
         if (canExitTop && (float) distToLeft > physics.getPosition().y) {
             result = GooseTasks.CollectWindowTask.ScreenDirection.Top;
             physics.setTargetPos(new Vector2(
-                SamMath.Lerp(physics.getPosition().x, (float)(screenWidth / 2), 0.4f), -50f));
+                SamMath.Lerp(physics.getPosition().x, (float)(screenWidth / 2), 0.4f),
+                OFFSCREEN_EDGE_INSET));
         }
 
         return result;
@@ -1642,10 +1664,14 @@ public class GooseAI {
             return;
         }
 
+        // NabMouse no está implementado en Android: nunca se elige.
         GooseTasks.GooseTask task = gooseTaskWeightedList[taskPickerDeck.Next()];
-        while (!string2boolean(ca.getIniKey("AttackRandomly"))) {
-            if (task != GooseTasks.GooseTask.NabMouse) break;
+        for (int i = 0; i < gooseTaskWeightedList.length
+                && task == GooseTasks.GooseTask.NabMouse; i++) {
             task = gooseTaskWeightedList[taskPickerDeck.Next()];
+        }
+        if (task == GooseTasks.GooseTask.NabMouse) {
+            task = GooseTasks.GooseTask.Wander;
         }
 
         setTask(task, true);

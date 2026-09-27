@@ -20,6 +20,12 @@ public class GooseBehaviorTree {
     private String currentBehavior = "Idle";
     private float behaviorStartTime = 0f;
 
+    private static final float CRITICAL_COOLDOWN_SECONDS = 12f;
+    private static final String[] PET_STAGE_EMOJIS = {":)", "<3", "<3<3", "BLISS!"};
+    private static final int NO_PET_STAGE = -1;
+    private float petDuration = 0f;
+    private int lastPetEmojiStage = NO_PET_STAGE;
+
     // ============== CONSTRUCTOR ==============
 
     public GooseBehaviorTree() {
@@ -62,31 +68,34 @@ public class GooseBehaviorTree {
                 // Exhausted - must sleep
                 .addChild(new BehaviorTree.Sequence("Exhausted")
                     .addChild(new BehaviorTree.LambdaCondition("NoEnergy", bb -> PetNeeds.get().energy < 10))
-                    .addChild(new BehaviorTree.LambdaAction("ForceSleep", bb -> {
-                        showEmoji("ZZZ");
-                        currentBehavior = "ForcedSleep";
-                        setTask(GooseTasks.GooseTask.Sleeping);
-                        return BehaviorTree.Status.SUCCESS;
-                    })))
+                    .addChild(new BehaviorTree.Cooldown(
+                        new BehaviorTree.LambdaAction("ForceSleep", bb -> {
+                            showEmoji("ZZZ");
+                            currentBehavior = "ForcedSleep";
+                            setTask(GooseTasks.GooseTask.Sleeping);
+                            return BehaviorTree.Status.SUCCESS;
+                        }), CRITICAL_COOLDOWN_SECONDS)))
                 // Starving - desperately seek food
                 .addChild(new BehaviorTree.Sequence("Starving")
                     .addChild(new BehaviorTree.LambdaCondition("Starving", bb -> PetNeeds.get().hunger > 90))
-                    .addChild(new BehaviorTree.LambdaAction("BegForFood", bb -> {
-                        showEmoji("HUNGRY!");
-                        Sound.HONCC();
-                        currentBehavior = "BeggingForFood";
-                        seekAttention();
-                        return BehaviorTree.Status.SUCCESS;
-                    })))
+                    .addChild(new BehaviorTree.Cooldown(
+                        new BehaviorTree.LambdaAction("BegForFood", bb -> {
+                            showEmoji("HUNGRY!");
+                            Sound.HONCC();
+                            currentBehavior = "BeggingForFood";
+                            seekAttention();
+                            return BehaviorTree.Status.SUCCESS;
+                        }), CRITICAL_COOLDOWN_SECONDS)))
                 // Depressed - need attention
                 .addChild(new BehaviorTree.Sequence("Depressed")
                     .addChild(new BehaviorTree.LambdaCondition("VeryUnhappy", bb -> PetNeeds.get().happiness < 10))
-                    .addChild(new BehaviorTree.LambdaAction("SeekComfort", bb -> {
-                        showEmoji("T_T");
-                        currentBehavior = "SeekingComfort";
-                        setTask(GooseTasks.GooseTask.Sad);
-                        return BehaviorTree.Status.SUCCESS;
-                    }))));
+                    .addChild(new BehaviorTree.Cooldown(
+                        new BehaviorTree.LambdaAction("SeekComfort", bb -> {
+                            showEmoji("T_T");
+                            currentBehavior = "SeekingComfort";
+                            setTask(GooseTasks.GooseTask.Sad);
+                            return BehaviorTree.Status.SUCCESS;
+                        }), CRITICAL_COOLDOWN_SECONDS))));
     }
 
     /**
@@ -102,17 +111,15 @@ public class GooseBehaviorTree {
                     float petDuration = bb.getFloat("petDuration", 0f);
                     currentBehavior = "EnjoyingPets";
 
-                    // Progressive reactions based on pet duration
-                    if (petDuration > 5f) {
-                        showEmoji("BLISS!");
-                    } else if (petDuration > 3f) {
-                        showEmoji("<3<3");
-                    } else if (petDuration > 1f) {
-                        showEmoji("<3");
-                    } else {
-                        showEmoji(":)");
+                    // Reacción progresiva; el emoji solo se muestra al cambiar de etapa.
+                    int stage = petDuration > 5f ? 3 : petDuration > 3f ? 2 : petDuration > 1f ? 1 : 0;
+                    if (stage != lastPetEmojiStage) {
+                        lastPetEmojiStage = stage;
+                        showEmoji(PET_STAGE_EMOJIS[stage]);
                     }
-                    return BehaviorTree.Status.RUNNING;
+                    // SUCCESS y no RUNNING: los composites guardan el hijo en curso y
+                    // con RUNNING el árbol no volvía a evaluar ninguna otra rama.
+                    return BehaviorTree.Status.SUCCESS;
                 })))
             // Being dragged
             .addChild(new BehaviorTree.Sequence("BeingDragged")
@@ -124,7 +131,7 @@ public class GooseBehaviorTree {
                         String[] reactions = {"WHOA!", "HEY!", "wheee~", "!!!"};
                         showEmoji(reactions[(int)(Math.random() * reactions.length)]);
                     }
-                    return BehaviorTree.Status.RUNNING;
+                    return BehaviorTree.Status.SUCCESS;
                 })))
             // Recently interacted - show gratitude
             .addChild(new BehaviorTree.Sequence("RecentInteraction")
@@ -384,7 +391,15 @@ public class GooseBehaviorTree {
         blackboard.set("deltaTime", deltaTime);
 
         // Interaction state
-        blackboard.set("isBeingPetted", touch != null && touch.isBeingPetted());
+        boolean isBeingPetted = touch != null && touch.isBeingPetted();
+        if (isBeingPetted) {
+            petDuration += deltaTime;
+        } else {
+            petDuration = 0f;
+            lastPetEmojiStage = NO_PET_STAGE;
+        }
+        blackboard.set("petDuration", petDuration);
+        blackboard.set("isBeingPetted", isBeingPetted);
         blackboard.set("isBeingDragged", touch != null && touch.isBeingDragged());
 
         // Get time since last interaction from memory (if available)
