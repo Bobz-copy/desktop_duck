@@ -175,6 +175,12 @@ public class MiniGames {
         Sound.PlayPlay();
     }
 
+    /** Termina el juego en curso sin premio, sonido ni callback. */
+    public static void cancelGame() {
+        isPlaying = false;
+        currentGame = null;
+    }
+
     public static void endGame(boolean won) {
         isPlaying = false;
 

@@ -191,9 +191,14 @@ public class GooseRenderer {
     /**
      * Main render method.
      */
-    public void render(Canvas canvas, GoosePhysics physics, GooseRig rig,
-                       GooseTouchHandler touchHandler, GooseAI ai, boolean petModeEnabled) {
+    /** Capas de dibujo: el mundo (efectos, texto) y el cuerpo del ganso. */
+    public enum Layer { WORLD, GOOSE }
 
+    /**
+     * Avanza el estado de dibujo. Una vez por frame.
+     */
+    public void updateFrame(GoosePhysics physics, GooseRig rig, GooseAI ai,
+                            boolean petModeEnabled) {
         float deltaTime = Time.deltaTime;
 
         // Update rig
@@ -208,6 +213,11 @@ public class GooseRenderer {
         if (petModeEnabled) {
             spawnStateParticles(physics, ai, deltaTime);
         }
+    }
+
+    public void render(Canvas canvas, Layer layer, GoosePhysics physics, GooseRig rig,
+                       GooseTouchHandler touchHandler, GooseAI ai, boolean petModeEnabled,
+                       int worldWidth, int worldHeight) {
 
         // Calculate direction vectors
         float dir = physics.getDirection();
@@ -227,26 +237,31 @@ public class GooseRenderer {
         lastForward = forward;
 
         // Render layers (back to front)
-        renderFootprints(canvas, physics);
-        renderTrail(canvas, physics);
-        renderGlow(canvas, position);
-        renderFeet(canvas, physics);
-        renderShadow(canvas, position);
-        renderBody(canvas, rig, forward);
-        renderDynamicSpeculars(canvas, rig, physics, forward);
-        renderEyes(canvas, rig);
-        renderParticles(canvas);
-
-        // Render pet mode elements
-        if (petModeEnabled) {
-            renderAccessories(canvas, rig);
-            renderStatusIndicators(canvas, position);
-            renderSleepIndicator(canvas, position, ai);
-            renderSpeedLines(canvas, physics);
+        if (layer == Layer.WORLD) {
+            renderFootprints(canvas, physics);
+            renderTrail(canvas, physics);
+            renderGlow(canvas, position);
+            renderParticles(canvas);
+            if (petModeEnabled) {
+                renderStatusIndicators(canvas, position);
+                renderSleepIndicator(canvas, position, ai);
+                renderSpeedLines(canvas, physics);
+            }
+        } else {
+            renderFeet(canvas, physics);
+            renderShadow(canvas, position);
+            renderBody(canvas, rig, forward);
+            renderDynamicSpeculars(canvas, rig, physics, forward);
+            renderEyes(canvas, rig);
+            if (petModeEnabled) {
+                renderAccessories(canvas, rig);
+            }
         }
 
         // Restore canvas scale
         canvas.restore();
+
+        if (layer != Layer.WORLD) return;
 
         // Render emoji outside of scale (so it stays readable)
         if (petModeEnabled) {
@@ -255,7 +270,7 @@ public class GooseRenderer {
         }
 
         // Render achievement notifications at top of screen
-        renderAchievementNotification(canvas, canvas.getWidth(), canvas.getHeight());
+        renderAchievementNotification(canvas, worldWidth, worldHeight);
     }
 
     // ============== PARTICLE MANAGEMENT ==============

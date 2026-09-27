@@ -49,20 +49,23 @@ public class PetWidget extends AppWidgetProvider {
             }
         }
 
+        // Con el proceso recién nacido el estado en memoria son valores por defecto
+        PetRepository.ensureLoaded(context);
+
         switch (action) {
             case ACTION_FEED:
                 PetNeeds.get().feed();
-                updateAllWidgets(context);
+                persistAndRefresh(context);
                 break;
             case ACTION_PLAY:
                 if (PetNeeds.get().energy > 20) {
                     PetNeeds.get().play();
                 }
-                updateAllWidgets(context);
+                persistAndRefresh(context);
                 break;
             case ACTION_SLEEP:
                 PetNeeds.get().sleep();
-                updateAllWidgets(context);
+                persistAndRefresh(context);
                 break;
             case ACTION_REFRESH:
                 updateAllWidgets(context);
@@ -70,7 +73,13 @@ public class PetWidget extends AppWidgetProvider {
         }
     }
 
+    private static void persistAndRefresh(Context context) {
+        PetRepository.save(context, null);
+        updateAllWidgets(context);
+    }
+
     static void updateAppWidget(Context context, AppWidgetManager appWidgetManager, int appWidgetId) {
+        PetRepository.ensureLoaded(context);
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.pet_widget);
 
         // Update pet name and status

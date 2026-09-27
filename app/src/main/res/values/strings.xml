@@ -70,4 +70,9 @@
     <string name="DrawSizeTooSmall">Draw size too small, set to minimum (0.1)</string>
     <string name="DrawSizeTooLarge">Draw size too large, set to maximum (10.0)</string>
     <string name="InvalidDrawSize">Invalid draw size, reset to default (1.0)</string>
+    <string name="OverlayChannelName">Goose on screen</string>
+    <string name="OverlayChannelDescription">Keeps the goose on screen</string>
+    <string name="OverlayNotificationTitle">The goose is loose</string>
+    <string name="OverlayNotificationText">Tap to open GooseDroid</string>
+    <string name="OverlayNotificationStop">Put away</string>
 </resources>

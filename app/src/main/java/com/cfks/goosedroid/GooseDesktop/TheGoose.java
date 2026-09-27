@@ -222,6 +222,7 @@ public class TheGoose implements
     // ============== CONSTANTS ==============
 
     private static final long AUTO_SAVE_INTERVAL_MS = 60000; // 1 minute
+    private static final String ACHIEVEMENT_KEY_PREFIX = "Ach_";
     private static final float DEBUG_TEXT_SIZE = 12f;
 
     // ============== MODULES ==============
@@ -288,12 +289,20 @@ public class TheGoose implements
     public static int OutLineColor = 0xFFD3D3D3;
     public static int MouthColor = 0xFFFFA500;
     public static int EyeColor = 0xFF000000;
-    public static int BodyColor = 0xFFFFFFFF;
+    private static final int DEFAULT_BODY_COLOR = 0xFFFFFFFF;
+    public static int BodyColor = DEFAULT_BODY_COLOR;
+    private static final float BASE_TOUCH_RADIUS = 45f;
+    private static final float MIN_TOUCH_RADIUS = 40f;
 
     // ============== CONFIGURABLE VALUES ==============
 
-    public static float DrawScale = 2.5f;  // Increased default size for better visibility
-    public static float WanderSpeed = 200f;
+    public static final float BASE_DRAW_SCALE = 2.5f;
+    public static final float DEFAULT_WANDER_SPEED = 200f;
+    public static float DrawScale = BASE_DRAW_SCALE;
+    public static float WanderSpeed = DEFAULT_WANDER_SPEED;
+
+    /** Píxeles de pantalla por unidad de mundo (el "DrawSize" de la configuración). */
+    public static float WorldScale = 2.5f;
 
     // ============== EVENT SYSTEM ==============
 
@@ -328,22 +337,23 @@ public class TheGoose implements
     /**
      * Initialize the goose system.
      */
-    public static void Init(Context context, Canvas cvs, ConfigureActivity config) {
+    public static void Init(Context context, ConfigureActivity config,
+                            int worldWidth, int worldHeight) {
         lifecycleState = LifecycleState.INITIALIZING;
 
-        // Cada encendido arranca con el reloj de juego en cero
+        // Cada encendido arranca con el reloj de juego en cero y sin restos
+        // del encendido anterior
         Time.reset();
+        resetStaticState();
 
-        canvas = cvs;
-        ctx = context;
+        // Contexto de aplicación: el ganso sobrevive a cualquier Activity
+        ctx = context.getApplicationContext();
         ca = config;
+        screenWidth = worldWidth;
+        screenHeight = worldHeight;
 
         // Create singleton instance
         instance = new TheGoose();
-
-        // Get screen dimensions
-        screenWidth = Utils.getScreenWidth(ctx);
-        screenHeight = Utils.getScreenHeight(ctx);
 
         // Initialize modules
         initializeModules();
@@ -406,7 +416,7 @@ public class TheGoose implements
     private static void initializeModules() {
         // Physics
         physics = new GoosePhysics();
-        physics.initPosition((float) canvas.getWidth() / 2, (float) canvas.getHeight() / 2);
+        physics.initPosition(screenWidth / 2f, screenHeight / 2f);
         physics.setScreenBounds(screenWidth, screenHeight);
         physics.setCallback(instance);
 
@@ -417,10 +427,6 @@ public class TheGoose implements
 
         // Local AI/LLM System
         GooseLLM.initialize(ctx);
-
-        // Behavior Tree AI
-        behaviorTree = new GooseBehaviorTree();
-        behaviorTree.setCallback(instance);
 
         // Renderer
         renderer = new GooseRenderer();
@@ -439,6 +445,7 @@ public class TheGoose implements
     }
 
     private static void initializeAchievements() {
+        stats.achievementsUnlocked = 0;
         for (Achievement a : Achievement.values()) {
             unlockedAchievements.put(a, false);
             achievementProgress.put(a, 0);
@@ -482,10 +489,23 @@ public class TheGoose implements
      * Destroy and cleanup.
      */
     public static void destroy() {
+        if (lifecycleState == LifecycleState.UNINITIALIZED
+                || lifecycleState == LifecycleState.DESTROYED) {
+            return;
+        }
+        accumulatePlayTime();
         saveState();
 
         lifecycleState = LifecycleState.DESTROYED;
         broadcastEvent(EventType.DESTROYED, null);
+
+        if (touchHandler != null) {
+            touchHandler.cancelTouch();
+        }
+        GooseEasterEggs.deactivateMode();
+        MiniGames.cancelGame();
+        Sound.StopMusic();
+        Sound.releaseAll();
 
         // Cleanup trolling
         GooseTrolling.cleanup();
@@ -506,35 +526,100 @@ public class TheGoose implements
         renderer = null;
         touchHandler = null;
         rig = null;
+        canvas = null;
+    }
+
+    /**
+     * Limpia el estado estático que no debe sobrevivir a un reinicio del overlay.
+     */
+    private static void resetStaticState() {
+        isPaused = false;
+        isFramePrepared = false;
+        notificationQueue.clear();
+        currentNotification = null;
+        currentThought = "";
+        thoughtDisplayTime = 0f;
+        timeSinceThought = 0f;
+        eventQueue.clear();
+        lastTask = null;
+        lastMood = null;
+        lastAutoSave = System.currentTimeMillis();
+        lastPosition = new Vector2(0, 0);
+        behaviorTree = null;
+        BodyColor = DEFAULT_BODY_COLOR;
+        GooseVisualEffects.clearAll();
+    }
+
+    private static void accumulatePlayTime() {
+        long now = System.currentTimeMillis();
+        if (stats.sessionStartTime > 0) {
+            stats.totalPlayTimeMs += now - stats.sessionStartTime;
+        }
+        stats.sessionStartTime = now;
+    }
+
+    /**
+     * Cambia el tamaño del mundo (rotación o cambio de tamaño de la ventana).
+     */
+    public static void onWorldSizeChanged(int worldWidth, int worldHeight) {
+        if (worldWidth <= 0 || worldHeight <= 0) return;
+        screenWidth = worldWidth;
+        screenHeight = worldHeight;
+        if (physics != null) {
+            physics.setScreenBounds(worldWidth, worldHeight);
+            Vector2 pos = physics.getPosition();
+            physics.setPosition(new Vector2(
+                    SamMath.Clamp(pos.x, 0f, (float) worldWidth),
+                    SamMath.Clamp(pos.y, 0f, (float) worldHeight)));
+            physics.setTargetPos(new Vector2(worldWidth / 2f, worldHeight / 2f));
+        }
+        MiniGames.setScreenSize(worldWidth, worldHeight);
+    }
+
+    /** El toque en curso fue cancelado por el sistema: soltar sin ejecutar gesto. */
+    public static void onTouchCancel() {
+        if (touchHandler != null) {
+            touchHandler.cancelTouch();
+        }
+        if (physics != null && physics.getState() == GoosePhysics.PhysicsState.DRAGGED) {
+            physics.endDrag(Vector2.zero);
+        }
+        if (ai != null) {
+            ai.setTask(GooseTasks.GooseTask.Wander, false);
+        }
+    }
+
+    /** Radio, en unidades de mundo, dentro del cual un toque cuenta como sobre el ganso. */
+    public static float getTouchRadius() {
+        return Math.max(MIN_TOUCH_RADIUS, BASE_TOUCH_RADIUS * DrawScale);
+    }
+
+    public static boolean isMiniGamePlaying() {
+        return petModeEnabled && MiniGames.isPlaying();
     }
 
     /**
      * Save current state to config.
      */
     public static void saveState() {
-        if (ca == null) return;
+        if (ctx == null) return;
 
-        // Save needs
-        ca.setIniKey("PetHunger", String.valueOf(PetNeeds.get().hunger));
-        ca.setIniKey("PetEnergy", String.valueOf(PetNeeds.get().energy));
-        ca.setIniKey("PetHappiness", String.valueOf(PetNeeds.get().happiness));
+        accumulatePlayTime();
 
-        // Save personality
-        ca.setIniKey("PersonalityPlayfulness", String.valueOf(PetPersonality.get().playfulness));
-        ca.setIniKey("PersonalityAffection", String.valueOf(PetPersonality.get().affection));
-        ca.setIniKey("PersonalityBravery", String.valueOf(PetPersonality.get().bravery));
-        ca.setIniKey("PersonalityMischief", String.valueOf(PetPersonality.get().mischief));
+        java.util.Properties extra = new java.util.Properties();
+        extra.setProperty("StatTotalPlayTime", String.valueOf(stats.totalPlayTimeMs));
+        extra.setProperty("StatTotalPets", String.valueOf(stats.totalPets));
+        extra.setProperty("StatTotalBoops", String.valueOf(stats.totalBoops));
+        extra.setProperty("StatHighestCombo", String.valueOf(stats.highestCombo));
+        for (Achievement a : Achievement.values()) {
+            Boolean isUnlocked = unlockedAchievements.get(a);
+            Integer progress = achievementProgress.get(a);
+            extra.setProperty(ACHIEVEMENT_KEY_PREFIX + a.name(),
+                    (isUnlocked != null && isUnlocked ? "1" : "0") + ":"
+                            + (progress != null ? progress : 0));
+        }
 
-        // Save statistics
-        ca.setIniKey("StatTotalPlayTime", String.valueOf(stats.totalPlayTimeMs));
-        ca.setIniKey("StatTotalPets", String.valueOf(stats.totalPets));
-        ca.setIniKey("StatTotalBoops", String.valueOf(stats.totalBoops));
-        ca.setIniKey("StatHighestCombo", String.valueOf(stats.highestCombo));
-
-        // Save appearance
-        ca.setIniKey("PetHatId", String.valueOf(PetAppearance.get().hatId));
-        ca.setIniKey("PetAccessoryId", String.valueOf(PetAppearance.get().accessoryId));
-
+        com.cfks.goosedroid.PetRepository.save(ctx, extra);
         stats.lastSaveTime = System.currentTimeMillis();
     }
 
@@ -544,23 +629,21 @@ public class TheGoose implements
     public static void loadState() {
         if (ca == null) return;
 
+        // Necesidades, personalidad y apariencia: una sola vez por proceso.
+        // Si ya están en memoria son más nuevas que el archivo.
+        com.cfks.goosedroid.PetRepository.ensureLoaded(ctx);
+
         try {
-            // Load needs
-            String hunger = ca.getIniKey("PetHunger");
-            if (hunger != null) PetNeeds.get().hunger = Float.parseFloat(hunger);
-
-            String energy = ca.getIniKey("PetEnergy");
-            if (energy != null) PetNeeds.get().energy = Float.parseFloat(energy);
-
-            String happiness = ca.getIniKey("PetHappiness");
-            if (happiness != null) PetNeeds.get().happiness = Float.parseFloat(happiness);
-
-            // Load personality
-            String playfulness = ca.getIniKey("PersonalityPlayfulness");
-            if (playfulness != null) PetPersonality.get().playfulness = Float.parseFloat(playfulness);
-
-            String affection = ca.getIniKey("PersonalityAffection");
-            if (affection != null) PetPersonality.get().affection = Float.parseFloat(affection);
+            for (Achievement a : Achievement.values()) {
+                String saved = ca.getIniKey(ACHIEVEMENT_KEY_PREFIX + a.name());
+                if (saved == null) continue;
+                String[] parts = saved.split(":");
+                if (parts.length != 2) continue;
+                boolean isUnlocked = "1".equals(parts[0]);
+                unlockedAchievements.put(a, isUnlocked);
+                achievementProgress.put(a, Integer.parseInt(parts[1]));
+                if (isUnlocked) stats.achievementsUnlocked++;
+            }
 
             // Load statistics
             String playTime = ca.getIniKey("StatTotalPlayTime");
@@ -569,15 +652,14 @@ public class TheGoose implements
             String totalPets = ca.getIniKey("StatTotalPets");
             if (totalPets != null) stats.totalPets = Integer.parseInt(totalPets);
 
-            // Load appearance
-            String hatId = ca.getIniKey("PetHatId");
-            if (hatId != null) PetAppearance.get().hatId = Integer.parseInt(hatId);
+            String totalBoops = ca.getIniKey("StatTotalBoops");
+            if (totalBoops != null) stats.totalBoops = Integer.parseInt(totalBoops);
 
-            String accessoryId = ca.getIniKey("PetAccessoryId");
-            if (accessoryId != null) PetAppearance.get().accessoryId = Integer.parseInt(accessoryId);
+            String highestCombo = ca.getIniKey("StatHighestCombo");
+            if (highestCombo != null) stats.highestCombo = Integer.parseInt(highestCombo);
 
-        } catch (Exception e) {
-            // Ignore parsing errors, use defaults
+        } catch (NumberFormatException e) {
+            android.util.Log.w("TheGoose", "Estado guardado con formato inválido; se usan valores por defecto", e);
         }
     }
 
@@ -601,9 +683,6 @@ public class TheGoose implements
             checkMoodChange();
             checkCriticalNeeds();
             updateHappinessTracking(deltaTime);
-
-            // Update behavior tree
-            updateBehaviorTree(deltaTime);
 
             // Update thought system
             updateThoughts(deltaTime);
@@ -633,6 +712,7 @@ public class TheGoose implements
             checkSystemReactions();
 
             // Update easter eggs tracking
+            GooseEasterEggs.updateMode();
             GooseEasterEggs.checkPatience();
             GooseEasterEggs.checkSpecialDate();
 
@@ -805,41 +885,48 @@ public class TheGoose implements
      * Render usando el canvas del frame actual. El canvas de onDraw no está
      * garantizado que sea el mismo objeto entre frames.
      */
-    public static void Render(Canvas frameCanvas) {
-        if (frameCanvas != null) {
-            canvas = frameCanvas;
-        }
-        Render();
+    /**
+     * Actualiza el estado de dibujo (rig, partículas, colores). Una vez por frame,
+     * antes de dibujar cualquier capa.
+     */
+    public static void PrepareFrame() {
+        if (lifecycleState != LifecycleState.RUNNING || renderer == null) return;
+
+        applyEasterEggEffects();
+        applyColors();
+        renderer.updateFrame(physics, rig, ai, petModeEnabled);
+        isFramePrepared = true;
     }
 
-    public static void Render() {
-        if (lifecycleState != LifecycleState.RUNNING) return;
+    private static boolean isFramePrepared = false;
 
-        // Apply easter egg mode effects
-        applyEasterEggEffects();
+    /**
+     * Dibuja una capa sobre el canvas del frame actual.
+     */
+    public static void Render(Canvas frameCanvas, GooseRenderer.Layer layer) {
+        if (lifecycleState != LifecycleState.RUNNING || frameCanvas == null
+                || renderer == null || physics == null || !isFramePrepared) {
+            return;
+        }
+        canvas = frameCanvas;
 
-        applyColors();
-
-        // Render visual effects (background layer)
-        if (physics != null) {
+        if (layer == GooseRenderer.Layer.WORLD) {
             GooseVisualEffects.render(canvas, physics.getPosition());
         }
 
-        renderer.render(canvas, physics, rig, touchHandler, ai, petModeEnabled);
+        renderer.render(canvas, layer, physics, rig, touchHandler, ai, petModeEnabled,
+                screenWidth, screenHeight);
 
-        // Render dreams if sleeping
-        if (petModeEnabled && GooseDreams.isDreaming()) {
-            GooseDreams.render(canvas);
-        }
-
-        // Render minigames
-        if (petModeEnabled && MiniGames.isPlaying()) {
-            MiniGames.render(canvas);
-        }
-
-        // Render debug overlay
-        if (debugMode) {
-            renderDebugOverlay();
+        if (layer == GooseRenderer.Layer.WORLD) {
+            if (petModeEnabled && GooseDreams.isDreaming()) {
+                GooseDreams.render(canvas);
+            }
+            if (petModeEnabled && MiniGames.isPlaying()) {
+                MiniGames.render(canvas);
+            }
+            if (debugMode) {
+                renderDebugOverlay();
+            }
         }
     }
 
@@ -849,20 +936,15 @@ public class TheGoose implements
     private static void applyEasterEggEffects() {
         GooseEasterEggs.SecretMode mode = GooseEasterEggs.getCurrentMode();
 
+        // Cada flag refleja solo el modo actual: al cambiar de modo no quedan restos
+        GooseVisualEffects.setDiscoModeActive(mode == GooseEasterEggs.SecretMode.DISCO_GOOSE);
+        GooseVisualEffects.setGhostModeActive(mode == GooseEasterEggs.SecretMode.GHOST_GOOSE);
+        GooseVisualEffects.setRainbowTrailActive(mode == GooseEasterEggs.SecretMode.RAINBOW_GOOSE);
+        GooseVisualEffects.setGoldenGlowActive(mode == GooseEasterEggs.SecretMode.GOLDEN_GOOSE);
+
         switch (mode) {
             case DISCO_GOOSE:
-                GooseVisualEffects.setDiscoModeActive(true);
-                int discoColor = GooseVisualEffects.getDiscoColor();
-                BodyColor = discoColor;
-                break;
-            case GHOST_GOOSE:
-                GooseVisualEffects.setGhostModeActive(true);
-                break;
-            case RAINBOW_GOOSE:
-                GooseVisualEffects.setRainbowTrailActive(true);
-                break;
-            case GOLDEN_GOOSE:
-                GooseVisualEffects.setGoldenGlowActive(true);
+                discoBodyColor = GooseVisualEffects.getDiscoColor();
                 break;
             case PARTY_GOOSE:
                 // Spawn confetti periodically
@@ -873,14 +955,11 @@ public class TheGoose implements
                 }
                 break;
             default:
-                // Reset effects if no mode active
-                GooseVisualEffects.setDiscoModeActive(false);
-                GooseVisualEffects.setGhostModeActive(false);
-                GooseVisualEffects.setRainbowTrailActive(false);
-                GooseVisualEffects.setGoldenGlowActive(false);
                 break;
         }
     }
+
+    private static int discoBodyColor = DEFAULT_BODY_COLOR;
 
     private static void renderDebugOverlay() {
         Paint debugPaint = new Paint();
@@ -1202,6 +1281,7 @@ public class TheGoose implements
     private static void unlockAchievement(Achievement achievement) {
         unlockedAchievements.put(achievement, true);
         stats.achievementsUnlocked++;
+        lastAutoSave = 0; // forzar guardado en el próximo tick
 
         // Queue the achievement notification
         queueAchievementNotification(achievement);
@@ -1592,7 +1672,9 @@ public class TheGoose implements
             renderer.outlineColor = OutLineColor;
             renderer.mouthColor = MouthColor;
             renderer.eyeColor = EyeColor;
-            renderer.bodyColor = BodyColor;
+            boolean isDisco =
+                    GooseEasterEggs.getCurrentMode() == GooseEasterEggs.SecretMode.DISCO_GOOSE;
+            renderer.bodyColor = isDisco ? discoBodyColor : BodyColor;
         }
     }
 

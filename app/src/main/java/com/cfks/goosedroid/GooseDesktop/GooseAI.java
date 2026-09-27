@@ -543,9 +543,6 @@ public class GooseAI {
     // ============== RANDOM EVENTS ==============
 
     private void updateRandomEvents(float deltaTime) {
-        // Update GooseLLM boredom tracking
-        GooseLLM.updateBoredom(deltaTime);
-
         nextEventCheck -= deltaTime;
         if (nextEventCheck <= 0) {
             // Check more frequently (every 3-8 seconds)
