@@ -26,6 +26,14 @@
             android:exported="false"
             android:parentActivityName=".MainActivity"
             android:windowSoftInputMode="adjustResize" />
+        <!-- Ventanita para hablarle al ganso encima de cualquier app -->
+        <activity
+            android:name=".QuickChatActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:taskAffinity=""
+            android:theme="@style/AppTheme.QuickChat"
+            android:windowSoftInputMode="stateVisible|adjustResize" />
         <activity
             android:name=".CustomizeActivity"
             android:exported="false"

@@ -56,6 +56,7 @@ public final class BrainController {
     private static BrainConfig config;
     private static BrainMemory memory;
     private static GooseBrain brain;
+    private static GooseVoice voice;
     private static ReplyListener replyListener;
     private static final List<String> recentEvents = new ArrayList<>();
     private static final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -83,6 +84,7 @@ public final class BrainController {
             brain.release();
             brain = null;
         }
+        releaseVoice();
         recentEvents.clear();
     }
 
@@ -104,7 +106,28 @@ public final class BrainController {
         memory = new BrainMemory(new File(appContext.getFilesDir(), MEMORY_FILE));
     }
 
+    private static void releaseVoice() {
+        if (voice != null) {
+            voice.release();
+            voice = null;
+        }
+    }
+
+    private static void speakIfEnabled(String text, BrainTrigger trigger) {
+        if (!config.isVoiceEnabled()) {
+            releaseVoice();
+            return;
+        }
+        if (voice == null) {
+            voice = new GooseVoice(appContext, config.getLanguage());
+        }
+        voice.speak(text, trigger.kind.isUserInitiated());
+    }
+
     private static void rebuildBrain() {
+        // El idioma pudo cambiar: la voz se vuelve a crear con el próximo uso
+        releaseVoice();
+        GooseLLM.setLanguage(config.getLanguage());
         LlmBackend primary = BackendCatalog.create(appContext, config);
         LlmBackend fallback = new TemplateBackend(BrainController::templatePhrase);
 
@@ -352,6 +375,10 @@ public final class BrainController {
                 TheGoose.setThought("*escribe en su diario*");
             }
             return;
+        }
+
+        if (intent.hasSpeech()) {
+            speakIfEnabled(intent.say, trigger);
         }
 
         if (!TheGoose.isRunning()) return;

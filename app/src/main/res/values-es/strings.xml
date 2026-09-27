@@ -49,4 +49,10 @@
     <string name="BrainModelDownloadQuestion">¿Descargar %1$s (%2$d MB)? Conviene hacerlo con Wi-Fi.</string>
     <string name="BrainModelDeleteQuestion">¿Borrar %1$s del teléfono?</string>
     <string name="BrainModelMissing">Primero descargá el modelo elegido. Mientras tanto el ganso usa plantillas.</string>
+    <string name="QuickChatTitle">Hablarle al ganso</string>
+    <string name="QuickChatTitleWithName">Hablale a %1$s</string>
+    <string name="QuickChatClose">Cerrar</string>
+    <string name="OverlayNotificationTalk">Hablar</string>
+    <string name="BrainVoice">Leer lo que dice en voz alta</string>
+    <string name="BrainQuickChatHint">Tip: mantené apretado al ganso medio segundo para hablarle desde cualquier app.</string>
 </resources>

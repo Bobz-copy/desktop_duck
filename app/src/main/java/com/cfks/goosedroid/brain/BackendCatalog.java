@@ -2,6 +2,7 @@ package com.cfks.goosedroid.brain;
 
 import android.content.Context;
 
+import com.cfks.goosedroid.brain.backend.AnthropicBackend;
 import com.cfks.goosedroid.brain.backend.LiteRtBackend;
 import com.cfks.goosedroid.brain.backend.OpenAiCompatBackend;
 import com.cfks.goosedroid.brain.model.LocalModel;
@@ -27,7 +28,7 @@ public final class BackendCatalog {
     private static final String GEMINI_URL =
             "https://generativelanguage.googleapis.com/v1beta/openai";
     private static final String DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-lite";
-    private static final String DEFAULT_LOCAL_MODEL = "lfm25_12b";
+    private static final String DEFAULT_LOCAL_MODEL = "gemma4_e2b";
     private static final String LITERT_CACHE_DIRECTORY = "litert";
 
     /** Descripción de un tipo de backend para la pantalla de ajustes. Inmutable. */
@@ -86,6 +87,10 @@ public final class BackendCatalog {
         entries.add(new Entry(ID_OPENAI_COMPAT, "Servidor compatible con OpenAI",
                 "LM Studio, OpenRouter, Groq u otro servicio con el mismo formato.",
                 true, true, true, true, "", ""));
+        entries.add(new Entry(AnthropicBackend.ID, "Claude (Anthropic)",
+                "La mejor calidad de conversación. Necesita una clave de API de "
+                        + "Anthropic y cada respuesta tiene un costo; podés cambiar el modelo.",
+                true, false, true, true, "", AnthropicBackend.DEFAULT_MODEL));
         entries.add(new Entry(ID_GEMINI, "Gemini",
                 "API de Google. Tiene nivel gratuito; en ese nivel Google usa el "
                         + "contenido para mejorar sus productos.",
@@ -133,6 +138,9 @@ public final class BackendCatalog {
         String url = entry.needsUrl ? config.getUrl(entry.id, entry.defaultUrl) : entry.defaultUrl;
         String model = config.getModel(entry.id, entry.defaultModel);
         String apiKey = entry.needsApiKey ? config.getApiKey(entry.id) : "";
+        if (AnthropicBackend.ID.equals(entry.id)) {
+            return new AnthropicBackend(model, apiKey);
+        }
         return new OpenAiCompatBackend(entry.id, url, model, apiKey);
     }
 }

@@ -484,6 +484,10 @@ public class GooseOverlayService extends Service implements GooseLayerView.Host 
                 new Intent(this, MainActivity.class),
                 PendingIntent.FLAG_UPDATE_CURRENT | immutable);
 
+        PendingIntent talk = PendingIntent.getActivity(this, 2,
+                com.cfks.goosedroid.QuickChatActivity.createIntent(this),
+                PendingIntent.FLAG_UPDATE_CURRENT | immutable);
+
         PendingIntent stop = PendingIntent.getService(this, 1,
                 new Intent(this, GooseOverlayService.class).setAction(ACTION_STOP),
                 PendingIntent.FLAG_UPDATE_CURRENT | immutable);
@@ -495,6 +499,7 @@ public class GooseOverlayService extends Service implements GooseLayerView.Host 
                 .setContentIntent(openApp)
                 .setOngoing(true)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
+                .addAction(0, getString(R.string.OverlayNotificationTalk), talk)
                 .addAction(0, getString(R.string.OverlayNotificationStop), stop)
                 .build();
     }

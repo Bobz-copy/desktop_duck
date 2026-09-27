@@ -2,6 +2,36 @@
 
 Fecha: 2026-09-27 · Rama de trabajo: `estabilizacion` · Hallazgos de origen: [auditoria-2026-09-27.md](auditoria-2026-09-27.md)
 
+## Estado (actualizado 2026-09-27)
+
+| Fase | Estado | Qué quedó |
+|---|---|---|
+| 0 · Base | ✅ | AGP 8.12, compileSdk 36, JDK 21 automático, `tools/smoke.sh` |
+| 1 · Destrabar | ✅ | Eventos que terminan, árbol reactivo, cooldowns críticos, tareas con timeout, sin bucle infinito, audio seguro |
+| 2 · Una sola IA | ✅ | Un behavior tree, timers reseteados al interrumpir, modos secretos con duración, Seeking con cooldown |
+| 3 · Reloj | ✅ | Delta real con tope, tiempo en `double` |
+| 4 · Ciclo de vida | ✅ salvo notificaciones troll | Foreground service, `destroy()` real, `PetRepository` con escritura atómica, logros persistidos, permiso de notificaciones |
+| 5 · Pantalla y toques | ✅ | Una escala, ventana chica táctil que sigue al ganso, rotación, pointer ids |
+| 6 · Tamagotchi | 🟡 | Hecho: tasas en horas, offline con pisos, evolución conectada, hitos. Falta: sueño nocturno automático, higiene y salud |
+| 7 · Rendimiento | ⏳ | Pendiente: cachear objetos gráficos del renderer, batería por IPC cada frame |
+| 8 · Núcleo del cerebro | ✅ | Interfaz, orquestador, parser tolerante, memoria, esquema JSON |
+| 9 · Backends remotos | ✅ | OpenAI-compatible (Ollama, LM Studio, OpenRouter, Groq), Gemini, Claude (SDK oficial) |
+| 10 · En el teléfono | 🟡 | Hecho: LiteRT-LM con 5 modelos descargables. Falta: llama.cpp (GGUF) |
+| 11 · Pantalla de IA | ✅ | Backend, modelo, clave cifrada, GPU, probar, memoria, diario |
+| 12 · Funciones | 🟡 | Hecho: chat, chat rápido con pulsación larga, memoria, diario, sueños, voz. Falta: notas en pantalla, reaccionar a notificaciones y apps (opcionales, sensibles) |
+
+### Mediciones en emulador (x86_64, sin GPU)
+
+| Modelo en el teléfono | Carga | Respuesta | Calidad observada |
+|---|---|---|---|
+| Qwen3 0.6B | 2,4 s | ~4 s | Pobre: frases sin sentido, a veces solo puntuación |
+| LFM2.5 1.2B | 4,8 s | ~6-7 s | Floja: mezcla inglés, repite la necesidad dominante |
+| Gemma 4 E2B | 3,1 s | ~5 s | Buena: frases con carácter y en español; guarda bien lo que le contás |
+
+En la PC con Ollama (RTX 5070 Ti), gemma3:4b y qwen3:4b responden en ~2,5 s con JSON válido el 100 % de las veces.
+
+**Recomendación para el POCO F5 Pro (12 GB):** Gemma 4 E2B como modelo en el teléfono; Ollama en la PC cuando estés en casa; Claude cuando quieras la mejor conversación.
+
 ## Objetivo
 
 Una mascota virtual que vive sobre las demás apps, que **no se traba con el uso**, que se cuida como un tamagotchi (en escala de horas y días, no de minutos) y cuyo comportamiento, frases y memoria los produce un **modelo de lenguaje intercambiable**: en el teléfono, en la PC de casa o en la nube.

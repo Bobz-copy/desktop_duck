@@ -154,8 +154,38 @@ public class IntentParserTest {
     }
 
     @Test
-    public void parse_brokenJson_isRejected() {
+    public void parse_unclosedSpeech_isRejected() {
         assertNull(IntentParser.parse("{\"say\": \"hola"));
+    }
+
+    @Test
+    public void parse_truncatedJson_keepsTheCompleteFields() {
+        String truncated = "{\"say\":\"¿Qué sabés de mí? ¡Yo veo todo!\",\n\"mood\":\n\"SAD\",\n"
+                + "\"action\":\n\"LOOK_AROUND\",\n\"remember\":\n\"}";
+
+        BrainIntent intent = IntentParser.parse(truncated);
+
+        assertNotNull(intent);
+        assertEquals("¿Qué sabés de mí? ¡Yo veo todo!", intent.say);
+        assertEquals(BrainMood.SAD, intent.mood);
+        assertEquals(BrainAction.LOOK_AROUND, intent.action);
+        assertFalse("un recuerdo cortado no se guarda", intent.hasMemory());
+    }
+
+    @Test
+    public void parse_leadingColonFromConstrainedDecoding_isRemoved() {
+        assertEquals("¿Qué hago? Aquí, observando.",
+                IntentParser.parse("{\"say\":\":¿Qué hago? Aquí, observando.\"}").say);
+        assertEquals("Qué lata.", IntentParser.parse("{\"say\":\": Qué lata.\"}").say);
+        assertEquals("¡Pan!", IntentParser.parse("{\"say\":\"¡Pan!\"}").say);
+    }
+
+    @Test
+    public void findStringField_handlesEscapesAndMissingKeys() {
+        assertEquals("dijo \"hola\"",
+                IntentParser.findStringField("{\"say\": \"dijo \\\"hola\\\"\"", "say"));
+        assertEquals("", IntentParser.findStringField("{\"mood\": \"SAD\"}", "say"));
+        assertEquals("", IntentParser.findStringField("{\"say\": 42}", "say"));
     }
 
     @Test

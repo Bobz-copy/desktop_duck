@@ -787,7 +787,7 @@ public class GooseAI {
                 break;
             case TROLL_NOTIFICATION:
                 eventDuration = 0.5f;
-                GooseTrolling.sendTrollNotification();
+                GooseTrolling.trySendTrollNotification();
                 callback.getTouchHandler().showEmoji(">:)");
                 break;
             case VIBRATE_HONK:

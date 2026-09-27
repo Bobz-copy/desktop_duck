@@ -56,7 +56,7 @@ public final class LocalModelCatalog {
         models.add(new LocalModel(
                 "gemma4_e2b",
                 "Gemma 4 E2B",
-                "La mejor calidad. Descarga grande y respuestas más lentas.",
+                "La mejor calidad. Recomendado con 8 GB de RAM o más; descarga grande.",
                 "Apache 2.0",
                 "gemma-4-E2B-it.litertlm",
                 HOST + "gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm",

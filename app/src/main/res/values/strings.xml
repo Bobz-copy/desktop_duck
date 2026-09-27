@@ -119,4 +119,10 @@
     <string name="BrainModelDownloadQuestion">Download %1$s (%2$d MB)? Better over Wi-Fi.</string>
     <string name="BrainModelDeleteQuestion">Delete %1$s from the phone?</string>
     <string name="BrainModelMissing">Download the chosen model first. Meanwhile the goose uses templates.</string>
+    <string name="QuickChatTitle">Talk to the goose</string>
+    <string name="QuickChatTitleWithName">Talk to %1$s</string>
+    <string name="QuickChatClose">Close</string>
+    <string name="OverlayNotificationTalk">Talk</string>
+    <string name="BrainVoice">Read its words aloud</string>
+    <string name="BrainQuickChatHint">Tip: hold the goose still for half a second to talk to it from any app.</string>
 </resources>

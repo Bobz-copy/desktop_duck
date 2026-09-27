@@ -537,6 +537,7 @@ public class TheGoose implements
      */
     private static void resetStaticState() {
         isPaused = false;
+        NightRoutine.reset();
         isFramePrepared = false;
         notificationQueue.clear();
         currentNotification = null;
@@ -589,6 +590,15 @@ public class TheGoose implements
             physics.setTargetPos(new Vector2(worldWidth / 2f, worldHeight / 2f));
         }
         MiniGames.setScreenSize(worldWidth, worldHeight);
+    }
+
+    private static void openQuickChat() {
+        if (ctx == null) return;
+        try {
+            ctx.startActivity(com.cfks.goosedroid.QuickChatActivity.createIntent(ctx));
+        } catch (RuntimeException e) {
+            android.util.Log.w("TheGoose", "No se pudo abrir el chat", e);
+        }
     }
 
     /** El toque en curso fue cancelado por el sistema: soltar sin ejecutar gesto. */
@@ -730,8 +740,15 @@ public class TheGoose implements
 
             // Update easter eggs tracking
             GooseEasterEggs.updateMode();
-            GooseEasterEggs.checkPatience();
-            GooseEasterEggs.checkSpecialDate();
+            NightRoutine.update(deltaTime);
+            // Chequeos por reloj de pared: alcanza con cada tanto, no en cada frame
+            wallClockCheckTimer += deltaTime;
+            if (wallClockCheckTimer >= WALL_CLOCK_CHECK_INTERVAL_SECONDS) {
+                wallClockCheckTimer = 0f;
+                GooseEasterEggs.checkPatience();
+                GooseEasterEggs.checkSpecialDate();
+                checkTimeBasedAchievements();
+            }
 
             // Update sound effects
             GooseSoundEffects.update();
@@ -773,8 +790,11 @@ public class TheGoose implements
         stats.updateAverageHappiness(PetNeeds.get().happiness);
 
         // Check time-based achievements
-        checkTimeBasedAchievements();
     }
+
+    /** La medianoche exacta (easter egg) dura un minuto: este intervalo no se la pierde. */
+    private static final float WALL_CLOCK_CHECK_INTERVAL_SECONDS = 20f;
+    private static float wallClockCheckTimer = 0f;
 
     /**
      * Check achievements based on time of day and play duration.
@@ -1847,6 +1867,11 @@ public class TheGoose implements
                 incrementAchievement(Achievement.THROWER);
                 checkAchievement(Achievement.LAUNCH_PRO, stats.totalThrows);
                 broadcastEvent(EventType.THROWN, touchHandler.getDragVelocity());
+                break;
+
+            case LONG_PRESS:
+                // Mantenerlo apretado abre la ventanita para hablarle
+                openQuickChat();
                 break;
 
             case DOUBLE_TAP:

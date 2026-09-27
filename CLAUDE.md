@@ -4,87 +4,78 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-GooseDroid is an Android virtual pet / Desktop Goose port. An animated goose lives as a screen overlay with AI behaviors, touch interactions, needs system, evolution, mini-games, and procedural rendering (no sprites — all Canvas draw calls).
+GooseDroid is an Android virtual pet (tamagotchi-style) based on Desktop Goose. An animated goose lives as a screen overlay with AI behaviors, touch interactions, needs, evolution, mini-games and procedural rendering (no sprites — all Canvas draw calls). Its words and decisions come from a pluggable language-model "brain" (templates, on-device model, local server or cloud API).
 
-**Package**: `com.cfks.goosedroid` | **Java 11** | **Min SDK 24** | **Target SDK 36** | **compileSdk 36**
-**AGP**: 8.12.0 (Gradle 8.13) | **Version**: 1.0.4 (versionCode 5)
+**Package**: `com.cfks.goosedroid` | **Java 11 source** | **Min SDK 24** | **Target/compile SDK 36**
+**AGP**: 8.12.0 | **Gradle**: 8.13 | **Version**: 1.0.4 (versionCode 5)
 
-## Build Commands
+## Build Requirements
+
+- **The Gradle daemon must run on JDK 21**: `litertlm-android` ships Java 21 bytecode. `gradle/gradle-daemon-jvm.properties` pins `toolchainVersion=21`, so Gradle picks an installed JDK 21 automatically even if `JAVA_HOME` points to JDK 17.
+- Android SDK path goes in `local.properties` (`sdk.dir=C:/Android/sdk` on the dev machine — forward slashes).
+- Core library desugaring is enabled (the Anthropic SDK uses `java.time`).
+
+## Build & Test Commands
 
 ```bash
-./gradlew assembleDebug          # Debug APK → app/build/outputs/apk/debug/
-./gradlew assembleRelease        # Release APK (minified, requires keystore in local.properties)
-./gradlew test                   # Unit tests
-./gradlew clean                  # Clean build artifacts
+./gradlew assembleDebug                              # Debug APK -> app/build/outputs/apk/debug/
+./gradlew testDebugUnitTest                          # All JVM unit tests
+./gradlew testDebugUnitTest --tests "*GooseBrainTest" # One test class
+./gradlew assembleRelease                            # Minified release (keystore in local.properties)
 ```
 
-Release signing requires `keystore.path`, `keystore.password`, `keystore.alias`, `keystore.alias_password` in `local.properties`.
+Release signing reads `keystore.path`, `keystore.password`, `keystore.alias`, `keystore.alias_password` from `local.properties`.
+
+### Emulator tooling (`tools/`)
+
+- `tools/smoke.sh` — installs the APK, enables the overlay, checks the goose animates outside the app and that logcat has no loop exceptions. Run after any change to rendering, lifecycle or the service.
+- `tools/ui.sh tap|type|text|taptext|scrolltap|shot` — drive the UI by resource-id over adb.
+- `tools/goosepos.sh` — prints the goose window center (for tap/drag tests).
+- `tools/eval_models.py` — compares language models (through any OpenAI-compatible server, e.g. Ollama) on the real prompts. Generate the prompts first with `./gradlew testDebugUnitTest --tests "*PromptSamplesTest"`.
 
 ## Architecture
 
 ```
-GooseDroidApplication          (Application class, crash reporting, memory management)
-    ↓
-MainActivity                   (Settings UI, overlay toggle, pet mode controls)
-    ↓ starts overlay
-GooseView                      (Custom View, ~120 FPS render loop via Handler.postDelayed)
-    ↓ delegates to
-TheGoose                       (Central coordinator — lifecycle, events, achievements, statistics)
-    ├── GooseAI                (Behavior system: modular behaviors, memory, routines, decision tree)
-    ├── GooseBehaviorTree      (Priority-based behavior tree: critical needs → interaction → needs → personality → idle)
-    ├── GoosePhysics           (Movement, jumping, bouncing, friction, surface types, foot IK)
-    ├── GooseRig               (Skeletal system: bones, expressions, poses)
-    ├── GooseRenderer          (Procedural drawing, particles, trails, glow, status indicators)
-    ├── GooseTouchHandler      (Gesture recognition: tap, pet, drag, throw, boop, tickle, belly rub, etc.)
-    ├── GooseTasks             (Task/state enums: Wander, NabMouse, Sleeping, Eating, BeingPetted, etc.)
-    ├── GooseLLM               (On-device "AI" — template-based thought generation, personality-driven responses, memory)
-    ├── GooseVisualEffects     (Particle effects: hearts, sparkles, confetti, dust, etc.)
-    ├── GooseSoundEffects      (Extended honk types, footsteps, emotional sounds via SoundPool)
-    ├── GooseDreams            (Sleep thought bubbles based on daily experiences)
-    ├── GooseEasterEggs        (Secret modes and hidden interactions)
-    ├── GooseTrolling          (Fake notifications, vibration, troll messages)
-    ├── GooseSystemReactions   (Reacts to battery level, time of day, inactivity)
-    ├── MiniGames              (Feeding, chasing, catching, hide & seek, honk hero, memory honk)
-    ├── Sound                  (Core MediaPlayer audio pools)
-    ├── Easings                (Easing functions for animations)
-    └── FootMark               (Mud footprint tracking)
-
-Pet Systems (root package):
-    ├── PetNeeds               (Tamagotchi-style: hunger, energy, happiness with decay rates)
-    ├── PetPersonality         (Evolving traits: playfulness, affection, bravery, mischief [-100..+100])
-    ├── PetAppearance          (Colors, hats, accessories, creature types)
-    ├── PetEvolution → GooseEvolution  (Stages: Egg → Hatchling → Gosling → Adult → Elder → Legendary → Cosmic)
-    ├── PetWidget              (Home screen widget with feed/play/sleep actions)
-    └── PetNotificationManager (Notification alerts when needs are critical)
-
-Activities:
-    ├── MainActivity           (Main settings panel + overlay toggle)
-    ├── CustomizeActivity      (Appearance editor: name, colors, hats, accessories, creature type)
-    └── ConfigureActivity      (Properties file I/O for config.ini)
+MainActivity  ── starts/stops ──▶  overlay/GooseOverlayService   (foreground service, type specialUse)
+                                      ├── GooseLayerView WORLD   (full screen, not touchable: effects, text)
+                                      ├── GooseLayerView GOOSE   (small touchable window that follows the goose)
+                                      └── Choreographer frame loop → Time.tick → TheGoose.Tick/PrepareFrame
+TheGoose (static coordinator)
+    ├── GooseAI + GooseBehaviorTree   (single behavior tree, owned by GooseAI)
+    ├── GoosePhysics, GooseRig, GooseRenderer (Layer.WORLD / Layer.GOOSE), GooseTouchHandler
+    ├── GooseEasterEggs, GooseDreams, GooseTrolling, GooseSystemReactions, MiniGames, Sound
+    └── brain/BrainController  ◀── game events (petted, fed, need critical, sleep, diary, chat)
+brain/
+    ├── GooseBrain         one thought at a time, rate limit, fallback to templates, backoff
+    ├── PromptBuilder      stable system prompt + per-request user prompt; IntentSchema (JSON schema)
+    ├── IntentParser       tolerant JSON parsing (prose, fences, <think>, truncation, typos)
+    ├── BrainMemory        long-term facts + diary (JSON file, atomic writes)
+    ├── BrainConfig        prefs; API keys in EncryptedSharedPreferences
+    ├── BackendCatalog     the backend choices shown in BrainActivity
+    ├── GooseVoice         TextToSpeech
+    ├── backend/  TemplateBackend · LiteRtBackend (on-device .litertlm) · OpenAiCompatBackend
+    │             (Ollama/LM Studio/OpenRouter/Groq/Gemini) · AnthropicBackend (official SDK)
+    └── model/    LocalModelCatalog · ModelDownloader (resumable, verified) · ModelDownloads
+PetRepository  — single source of truth for saved pet state (config.ini, merge + atomic write)
 ```
 
-### Key Design Patterns
+### Key rules
 
-- **TheGoose is a coordinator** that implements multiple callback interfaces (`AICallback`, `TouchCallback`, `PhysicsCallback`, `GestureListener`, `GameCallback`). All module communication flows through it.
-- **GooseAI.Behavior interface**: modular behaviors with `onEnter/onUpdate/onExit/isComplete/getPriority/getName`.
-- **BehaviorTree**: standard game AI pattern with Selector/Sequence/Condition/Action nodes and a Blackboard for shared state.
-- **Static state**: `PetNeeds`, `PetPersonality`, `PetAppearance` use static fields — global mutable state, not instance-based.
-- **SamEngine**: math library with `Vector2`, `Time` (global deltaTime), `SamMath`, and `Deck` (weighted random selection).
-
-### Configuration
-
-`config.ini` (INI/Properties format) in `assets/` as defaults, copied to app private dir at first run. Managed by `ConfigureActivity`. Contains appearance, behavior, pet needs, personality, and timing settings.
-
-### Permissions
-
-`SYSTEM_ALERT_WINDOW` (overlay), `VIBRATE`, `POST_NOTIFICATIONS`, `SCHEDULE_EXACT_ALARM`, `FOREGROUND_SERVICE`, `RECEIVE_BOOT_COMPLETED`.
+- **The render loop never calls a model.** Brain requests are async; intents are delivered on the main thread and mapped to existing tasks/events (`BrainAction`).
+- **All pet state saves go through `PetRepository`** (Activity, service and widget share one process and one `PetState`).
+- **Time**: `Time.deltaTime` is the real frame delta (capped at 50 ms); `Time.time` is game time in `double`. Timestamps stored for later comparison must be `double`.
+- **Coordinates**: one world space, origin at the top-left of the WORLD window; screen = origin + world × `TheGoose.WorldScale`. The goose body is scaled by `TheGoose.DrawScale`.
+- **Plain HTTP only to the local network** (`LocalNetwork`); cloud backends need https.
+- **Static state**: `TheGoose.Init` calls `resetStaticState()`; anything static that must not survive an overlay restart goes there.
 
 ## Code Conventions
 
-- Mixed Chinese/English comments (originally developed in AIDE+ IDE on Android)
-- Spanish comments in newer files (`GooseVisualEffects`, `GooseDreams`, `GooseEasterEggs`, `PetNeeds`, etc.)
-- `GooseDesktop/` subpackage contains all goose engine modules; root package has activities and pet systems
-- Dependencies managed via `gradle/libs.versions.toml` version catalog
-- External dependency: `app/libs/core.jar` (bundled via `fileTree`)
-- ProGuard enabled for release builds — keeps all project classes (broad `-keep` rules)
-- Repositories include Aliyun mirrors (Chinese Maven mirrors) in `settings.gradle`
+- Mixed Chinese/English comments in the original files; Spanish comments in newer files.
+- `GooseDesktop/` holds the goose engine; root package has activities and pet systems; `brain/` and `overlay/` are the new layers.
+- Dependencies via `gradle/libs.versions.toml` plus a few direct coordinates in `app/build.gradle`.
+- Unit tests are plain JVM tests (JUnit 4, `org.json` and OkHttp `MockWebServer` on the test classpath); keep Android types out of classes you want to unit test.
+
+## Docs
+
+- `docs/auditoria-2026-09-27.md` — original bug audit.
+- `docs/PLAN.md` — implementation plan, LLM research and phase status.

@@ -59,6 +59,19 @@
                         android:layout_height="wrap_content"
                         android:textSize="12sp" />
 
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/BrainVoice"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="@string/BrainVoice" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/BrainQuickChatHint"
+                        android:textSize="12sp" />
+
                     <com.google.android.material.textfield.TextInputLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"

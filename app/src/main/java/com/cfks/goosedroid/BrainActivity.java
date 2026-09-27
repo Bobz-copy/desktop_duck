@@ -63,6 +63,8 @@ public class BrainActivity extends AppCompatActivity implements BrainController.
     private enum Pending { NONE, CHAT, TEST, DIARY }
 
     private Pending pending = Pending.NONE;
+    /** Por qué falló el cerebro principal en el pedido en curso, o null. */
+    private String pendingError = null;
     private long requestStartMs = 0L;
 
     @Override
@@ -129,6 +131,12 @@ public class BrainActivity extends AppCompatActivity implements BrainController.
         useGpuSwitch.setChecked(config.isGpuEnabled());
         useGpuSwitch.setOnCheckedChangeListener((button, isChecked) ->
                 config.setGpuEnabled(isChecked));
+
+        com.google.android.material.materialswitch.MaterialSwitch voiceSwitch =
+                findViewById(R.id.BrainVoice);
+        voiceSwitch.setChecked(config.isVoiceEnabled());
+        voiceSwitch.setOnCheckedChangeListener((button, isChecked) ->
+                config.setVoiceEnabled(isChecked));
 
         MaterialButton saveAndTest = findViewById(R.id.BrainSaveAndTest);
         saveAndTest.setOnClickListener(v -> saveAndTest());
@@ -260,6 +268,7 @@ public class BrainActivity extends AppCompatActivity implements BrainController.
         boolean isStarted = BrainController.think(this, trigger, detail);
         if (isStarted) {
             pending = kind;
+            pendingError = null;
             requestStartMs = SystemClock.elapsedRealtime();
         }
         return isStarted;
@@ -272,13 +281,15 @@ public class BrainActivity extends AppCompatActivity implements BrainController.
                 BackendCatalog.find(backendId).title, elapsedMs / 1000f);
         String text = intent.hasSpeech() ? intent.say : getString(R.string.BrainSilent);
 
+        // Si respondió el respaldo, el motivo de la falla sigue a la vista
+        String errorPrefix = pendingError != null ? pendingError + "\n" : "";
         switch (pending) {
             case CHAT:
                 chatReply.setText(text);
-                chatMeta.setText(describe(intent, meta));
+                chatMeta.setText(errorPrefix + describe(intent, meta));
                 break;
             case TEST:
-                testResult.setText(getString(R.string.BrainTestOk, text, meta));
+                testResult.setText(errorPrefix + getString(R.string.BrainTestOk, text, meta));
                 break;
             case DIARY:
                 refreshDiary();
@@ -288,6 +299,7 @@ public class BrainActivity extends AppCompatActivity implements BrainController.
                 break;
         }
         pending = Pending.NONE;
+        pendingError = null;
         if (intent.hasMemory()) {
             refreshMemory();
         }
@@ -297,6 +309,7 @@ public class BrainActivity extends AppCompatActivity implements BrainController.
     public void onError(LlmException error, String backendId) {
         String message = getString(R.string.BrainTestError,
                 BackendCatalog.find(backendId).title, error.getMessage());
+        pendingError = message;
         if (pending == Pending.TEST) {
             testResult.setText(message);
         } else if (pending == Pending.CHAT) {

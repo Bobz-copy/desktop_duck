@@ -14,6 +14,7 @@ public final class IntentParser {
     private static final String THINK_OPEN = "<think>";
     private static final String THINK_CLOSE = "</think>";
     private static final String CODE_FENCE = "```";
+    private static final String LEADING_NOISE = ":;,.-\u2013\u2014 ";
 
     private IntentParser() {
     }
@@ -40,7 +41,12 @@ public final class IntentParser {
             if (intent != null) return intent;
         }
 
-        // Sin JSON válido: tratar la respuesta como una frase suelta
+        // JSON cortado a la mitad: rescatar los campos que llegaron completos
+        if (text.indexOf('{') >= 0) {
+            return salvageFields(text, maxSayLength);
+        }
+
+        // Sin JSON: tratar la respuesta como una frase suelta
         String speech = cleanSpeech(stripCodeFence(text), maxSayLength);
         if (speech.isEmpty() || speech.indexOf('{') >= 0) return null;
         return BrainIntent.ofSpeech(speech);
@@ -58,6 +64,62 @@ public final class IntentParser {
             return intent.isEmpty() ? null : intent;
         } catch (JSONException e) {
             return null;
+        }
+    }
+
+    /**
+     * Lee "say", "mood" y "action" de un JSON incompleto. Un campo sin cerrar
+     * se descarta; "remember" solo se acepta completo.
+     */
+    static BrainIntent salvageFields(String text, int maxSayLength) {
+        BrainIntent intent = new BrainIntent(
+                cleanSpeech(findStringField(text, "say"), maxSayLength),
+                BrainMood.fromModelText(findStringField(text, "mood")),
+                BrainAction.fromModelText(findStringField(text, "action")),
+                cleanSpeech(findStringField(text, "remember"), BrainIntent.MAX_REMEMBER_LENGTH));
+        return intent.isEmpty() ? null : intent;
+    }
+
+    /**
+     * Busca "clave": "valor" y devuelve el valor si la cadena está cerrada;
+     * cadena vacía si no está o quedó cortada.
+     */
+    static String findStringField(String text, String key) {
+        String quotedKey = "\"" + key + "\"";
+        int keyIndex = text.indexOf(quotedKey);
+        if (keyIndex < 0) return "";
+        int colon = text.indexOf(':', keyIndex + quotedKey.length());
+        if (colon < 0) return "";
+        int start = colon + 1;
+        while (start < text.length() && Character.isWhitespace(text.charAt(start))) start++;
+        if (start >= text.length() || text.charAt(start) != '"') return "";
+
+        StringBuilder value = new StringBuilder();
+        boolean isEscaped = false;
+        for (int i = start + 1; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (isEscaped) {
+                value.append(unescape(c));
+                isEscaped = false;
+            } else if (c == '\\') {
+                isEscaped = true;
+            } else if (c == '"') {
+                return value.toString();
+            } else {
+                value.append(c);
+            }
+        }
+        return "";
+    }
+
+    private static char unescape(char c) {
+        switch (c) {
+            case 'n':
+            case 'r':
+            case 't':
+                return ' ';
+            default:
+                return c;
         }
     }
 
@@ -140,12 +202,23 @@ public final class IntentParser {
         }
         // Solo puntuación ("," o "...") es ruido del modelo, no una frase
         if (!hasMeaningfulCharacter(text)) return "";
+        // La decodificación con esquema a veces deja ":" o "," al principio
+        text = stripLeadingNoise(text);
         if (text.length() <= maxLength) return text;
 
         String cut = text.substring(0, maxLength - 1);
         int lastSpace = cut.lastIndexOf(' ');
         if (lastSpace > maxLength / 2) cut = cut.substring(0, lastSpace);
         return cut.trim() + ELLIPSIS;
+    }
+
+    /** Quita puntuación suelta del comienzo; los signos ¿ y ¡ se conservan. */
+    private static String stripLeadingNoise(String text) {
+        int start = 0;
+        while (start < text.length() && LEADING_NOISE.indexOf(text.charAt(start)) >= 0) {
+            start++;
+        }
+        return text.substring(start).trim();
     }
 
     /** Letras, números o emojis. */
