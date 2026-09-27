@@ -41,6 +41,8 @@ public class LiteRtBackend implements LlmBackend {
     private static final int TOP_K = 40;
     private static final double TOP_P = 0.95;
     private static final int RANDOM_SEED = 0;
+    /** Los modelos de 1B se desvían del formato y del idioma con temperaturas altas. */
+    private static final float MAX_LOCAL_TEMPERATURE = 0.7f;
 
     private final File modelFile;
     private final File cacheDir;
@@ -139,6 +141,9 @@ public class LiteRtBackend implements LlmBackend {
             }
 
             if (cancelFlag.get()) throw cancelled();
+            if (Log.isLoggable(TAG, Log.DEBUG)) {
+                Log.d(TAG, "Salida cruda: " + text);
+            }
             if (text.trim().isEmpty()) {
                 throw new LlmException(LlmException.Kind.BAD_RESPONSE,
                         "El modelo no produjo texto");
@@ -181,7 +186,8 @@ public class LiteRtBackend implements LlmBackend {
                 request.systemPrompt.isEmpty() ? null : Contents.Companion.of(request.systemPrompt),
                 Collections.emptyList(),
                 Collections.emptyList(),
-                new SamplerConfig(TOP_K, TOP_P, request.temperature, RANDOM_SEED),
+                new SamplerConfig(TOP_K, TOP_P,
+                        Math.min(request.temperature, MAX_LOCAL_TEMPERATURE), RANDOM_SEED),
                 false,
                 null,
                 Collections.emptyMap(),

@@ -56,6 +56,28 @@ public class BrainMemoryTest {
     }
 
     @Test
+    public void remember_sameFactInOtherWords_replacesTheOldOne() {
+        memory.remember("A Pedro le gusta el tereré");
+        memory.remember("Trabaja de noche");
+        memory.remember("Pedro me gusta el tereré");
+
+        List<String> facts = memory.getFacts();
+
+        assertEquals(2, facts.size());
+        assertEquals("Pedro me gusta el tereré", facts.get(1));
+    }
+
+    @Test
+    public void isSameFact_distinguishesDifferentFacts() {
+        assertTrue(BrainMemory.isSameFact("Le gusta el mate", "le gusta el MATE."));
+        assertFalse(BrainMemory.isSameFact("Le gusta el mate", "Le gusta el tereré"));
+        assertFalse(BrainMemory.isSameFact("Tiene 3 gatos", "Tiene 30 gatos"));
+        assertFalse(BrainMemory.isSameFact("Mi humano se llama Pedro", "Pedro trabaja de noche"));
+        assertFalse(BrainMemory.isSameFact("Pedro bebió tereré antes de dormir",
+                "A Pedro le gusta el tereré"));
+    }
+
+    @Test
     public void remember_blankOrNull_isIgnored() {
         assertFalse(memory.remember(null));
         assertFalse(memory.remember("   "));

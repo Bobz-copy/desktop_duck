@@ -17,6 +17,32 @@ public final class PromptBuilder {
     static final int MAX_EVENTS_IN_PROMPT = 5;
 
     private static final int DIARY_MAX_TOKENS = 320;
+
+    /**
+     * Pocos ejemplos, de situaciones distintas: a los modelos chicos les enseñan
+     * el formato y el tono mejor que cualquier regla.
+     */
+    private static final String[][] TONE_EXAMPLES = {
+        {"Te acarician y estás contento", "¡Ahí, justo detrás del cuello!", "LOVING", "NONE"},
+        {"Tenés mucha hambre", "¿Eso que tenés es pan? Compartí.", "HUNGRY", "SEEK_ATTENTION"},
+        {"Es de madrugada y te aburrís", "Todos duermen. Momento perfecto para el caos.",
+            "MISCHIEVOUS", "TRACK_MUD"},
+    };
+
+    /** true si el modelo devolvió uno de los ejemplos tal cual. */
+    public static boolean isToneExample(String say) {
+        String wanted = normalizeForComparison(say);
+        if (wanted.isEmpty()) return false;
+        for (String[] example : TONE_EXAMPLES) {
+            if (normalizeForComparison(example[1]).equals(wanted)) return true;
+        }
+        return false;
+    }
+
+    private static String normalizeForComparison(String text) {
+        if (text == null) return "";
+        return text.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]+", " ").trim();
+    }
     static final int DIARY_MAX_SAY_LENGTH = 300;
     /** Por debajo de esto la batería es un tema; por encima, ruido. */
     private static final int LOW_BATTERY_PERCENT = 20;
@@ -59,8 +85,9 @@ public final class PromptBuilder {
                 .append("que ves: las apps, la hora, el clima de la pantalla, tu humano. ")
                 .append("No sos un asistente y no ayudás con tareas.\n\n");
 
-        sb.append("Hablás en ").append(language).append(", en primera persona, con frases ")
-                .append("cortas y con carácter. Nada de explicaciones ni de listas.\n\n");
+        sb.append("Hablás SOLO en ").append(language).append(", sin palabras de otro idioma, ")
+                .append("en primera persona, con frases cortas y con carácter. Nada de ")
+                .append("explicaciones ni de listas.\n\n");
 
         sb.append("Respondé SOLO con un objeto JSON, sin texto antes ni después:\n")
                 .append("{\"say\": \"...\", \"mood\": \"...\", \"action\": \"...\"}\n\n");
@@ -74,6 +101,13 @@ public final class PromptBuilder {
             sb.append("  ").append(action.name()).append(" = ")
                     .append(action.getDescription()).append("\n");
         }
+        sb.append("\nEjemplos del tono (no los copies, inventá los tuyos):\n");
+        for (String[] example : TONE_EXAMPLES) {
+            sb.append("- ").append(example[0]).append(": {\"say\": \"").append(example[1])
+                    .append("\", \"mood\": \"").append(example[2])
+                    .append("\", \"action\": \"").append(example[3]).append("\"}\n");
+        }
+
         sb.append("\nCada vez decí algo distinto: variá el tema y las palabras, y no ")
                 .append("repitas lo que ya dijiste. No recites tu estado: usalo para decidir de ")
                 .append("qué humor estás. Elegí la acción que va con lo que decís; si ")
@@ -106,7 +140,10 @@ public final class PromptBuilder {
 
         sb.append("\nAHORA\n");
         sb.append("- Son las ").append(pet.hourOfDay).append(" h");
-        if (!pet.dayOfWeek.isEmpty()) sb.append(", ").append(pet.dayOfWeek);
+        // El día solo importa para el diario; en lo demás los modelos chicos
+        // se obsesionan con él
+        boolean isDiary = trigger.kind == BrainTrigger.Kind.DIARY;
+        if (isDiary && !pet.dayOfWeek.isEmpty()) sb.append(", ").append(pet.dayOfWeek);
         sb.append(" (").append(describeTimeOfDay(pet.hourOfDay)).append(")\n");
         // Los modelos chicos se obsesionan con cualquier dato que ven: la
         // batería solo se menciona cuando importa.

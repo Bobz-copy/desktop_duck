@@ -67,6 +67,7 @@ public class PromptBuilderTest {
         assertTrue(prompt.contains("arisco"));
         assertFalse(prompt.contains("valiente"));
         assertTrue(prompt.contains("23 h"));
+        assertFalse("el día solo va en el diario", prompt.contains("sábado"));
         assertTrue(prompt.contains("noche"));
         assertTrue(prompt.contains("12 %"));
         assertFalse("un recuerdo solo se pide en el chat", prompt.contains("remember"));
@@ -182,6 +183,31 @@ public class PromptBuilderTest {
         String sanitized = PromptBuilder.sanitize(huge.toString());
 
         assertEquals(PromptBuilder.MAX_DETAIL_LENGTH, sanitized.length());
+    }
+
+    @Test
+    public void diary_includesTheDayOfTheWeek() {
+        String prompt = builder.buildUserPrompt(basePet().build(),
+                BrainTrigger.of(BrainTrigger.Kind.DIARY), null);
+
+        assertTrue(prompt.contains("sábado"));
+    }
+
+    @Test
+    public void systemPrompt_toneExamplesAreValidIntents() {
+        String prompt = builder.buildSystemPrompt("Pancho");
+        String examples = prompt.substring(prompt.indexOf("Ejemplos del tono"));
+
+        int count = 0;
+        for (String line : examples.split("\n")) {
+            if (!line.startsWith("- ")) continue;
+            BrainIntent intent = IntentParser.parse(line.substring(line.indexOf('{')));
+            assertNotNull(line, intent);
+            assertTrue(line, intent.hasSpeech());
+            assertTrue(line, intent.say.length() <= BrainIntent.MAX_SAY_LENGTH);
+            count++;
+        }
+        assertEquals(3, count);
     }
 
     @Test

@@ -13,8 +13,10 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /**
  * Memoria a largo plazo del ganso: datos sueltos que decidió recordar y las
@@ -26,6 +28,8 @@ import java.util.Locale;
 public class BrainMemory {
     static final int MAX_FACTS = 40;
     static final int MAX_DIARY_ENTRIES = 60;
+    private static final float SAME_FACT_SIMILARITY = 0.6f;
+    private static final int MAX_FILLER_WORD_LENGTH = 2;
     private static final int MAX_FILE_BYTES = 512 * 1024;
 
     /** Una entrada del diario. Inmutable. */
@@ -79,9 +83,10 @@ public class BrainMemory {
         if (clean.isEmpty()) return false;
         ensureLoaded();
 
-        String key = normalize(clean);
+        // La versión nueva reemplaza a las parecidas: los modelos repiten lo que
+        // ya saben con otras palabras
         for (int i = facts.size() - 1; i >= 0; i--) {
-            if (normalize(facts.get(i)).equals(key)) {
+            if (isSameFact(facts.get(i), clean)) {
                 facts.remove(i);
             }
         }
@@ -124,6 +129,40 @@ public class BrainMemory {
 
     private static String normalize(String text) {
         return text.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]+", " ").trim();
+    }
+
+    /**
+     * Dos datos son el mismo si comparten casi todas sus palabras con contenido
+     * (se ignoran las de una o dos letras, como artículos y pronombres, pero no
+     * los números).
+     */
+    static boolean isSameFact(String a, String b) {
+        Set<String> wordsA = contentWords(a);
+        Set<String> wordsB = contentWords(b);
+        if (wordsA.isEmpty() || wordsB.isEmpty()) {
+            return normalize(a).equals(normalize(b));
+        }
+        Set<String> common = new HashSet<>(wordsA);
+        common.retainAll(wordsB);
+        Set<String> all = new HashSet<>(wordsA);
+        all.addAll(wordsB);
+        return (float) common.size() / all.size() >= SAME_FACT_SIMILARITY;
+    }
+
+    private static Set<String> contentWords(String text) {
+        Set<String> words = new HashSet<>();
+        for (String word : normalize(text).split(" ")) {
+            // Los números siempre cuentan: "tiene 3 gatos" no es "tiene 30 gatos"
+            if (word.length() > MAX_FILLER_WORD_LENGTH || containsDigit(word)) words.add(word);
+        }
+        return words;
+    }
+
+    private static boolean containsDigit(String word) {
+        for (int i = 0; i < word.length(); i++) {
+            if (Character.isDigit(word.charAt(i))) return true;
+        }
+        return false;
     }
 
     private void ensureLoaded() {

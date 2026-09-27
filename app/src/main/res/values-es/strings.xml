@@ -34,4 +34,19 @@
     <string name="OverlayNotificationTitle">El ganso anda suelto</string>
     <string name="OverlayNotificationText">Tocá para abrir GooseDroid</string>
     <string name="OverlayNotificationStop">Guardar</string>
+    <string name="BrainUseGpu">Usar la GPU</string>
+    <string name="BrainUseGpuHint">En algunos teléfonos es más rápida y en otros más lenta. Probá las dos.</string>
+    <string name="BrainModelSummary">%1$s Licencia: %2$s.</string>
+    <string name="BrainModelDownload">Descargar</string>
+    <string name="BrainModelDelete">Borrar</string>
+    <string name="BrainModelCancel">Cancelar descarga</string>
+    <string name="BrainModelReady">Descargado</string>
+    <string name="BrainModelNotDownloaded">Sin descargar</string>
+    <string name="BrainModelDownloading">Empezando la descarga…</string>
+    <string name="BrainModelProgress">%1$d de %2$d MB</string>
+    <string name="BrainModelFailed">Falló la descarga: %1$s</string>
+    <string name="BrainModelOneAtATime">Ya se está descargando otro modelo. Esperá a que termine.</string>
+    <string name="BrainModelDownloadQuestion">¿Descargar %1$s (%2$d MB)? Conviene hacerlo con Wi-Fi.</string>
+    <string name="BrainModelDeleteQuestion">¿Borrar %1$s del teléfono?</string>
+    <string name="BrainModelMissing">Primero descargá el modelo elegido. Mientras tanto el ganso usa plantillas.</string>
 </resources>

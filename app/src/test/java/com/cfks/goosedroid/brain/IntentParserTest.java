@@ -136,6 +136,24 @@ public class IntentParserTest {
     }
 
     @Test
+    public void parse_punctuationOnlySpeech_countsAsSilence() {
+        BrainIntent intent = IntentParser.parse("{\"say\": \",\", \"action\": \"DANCE\"}");
+
+        assertNotNull(intent);
+        assertFalse(intent.hasSpeech());
+        assertEquals(BrainAction.DANCE, intent.action);
+        assertNull(IntentParser.parse("{\"say\": \"...\"}"));
+        assertNull(IntentParser.parse("  ?!  "));
+    }
+
+    @Test
+    public void parse_emojiOrShortSymbols_areKept() {
+        assertEquals("<3", IntentParser.parse("{\"say\": \"<3\"}").say);
+        String goose = new String(Character.toChars(0x1FABF));
+        assertEquals(goose, IntentParser.parse("{\"say\": \"" + goose + "\"}").say);
+    }
+
+    @Test
     public void parse_brokenJson_isRejected() {
         assertNull(IntentParser.parse("{\"say\": \"hola"));
     }

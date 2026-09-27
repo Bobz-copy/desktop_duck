@@ -55,6 +55,9 @@ public class BrainActivity extends AppCompatActivity implements BrainController.
     private TextView chatMeta;
     private LinearLayout memoryList;
     private LinearLayout diaryList;
+    private View localModelsLayout;
+    private com.google.android.material.materialswitch.MaterialSwitch useGpuSwitch;
+    private LocalModelsSection localModels;
 
     /** Qué pantalla pidió el pensamiento en curso, para saber dónde mostrarlo. */
     private enum Pending { NONE, CHAT, TEST, DIARY }
@@ -76,6 +79,12 @@ public class BrainActivity extends AppCompatActivity implements BrainController.
 
         config = new BrainConfig(this);
         bindViews();
+        localModels = new LocalModelsSection(this, config, findViewById(R.id.BrainLocalModels),
+                () -> {
+                    if (selectedEntry != null && selectedEntry.needsLocalModel) {
+                        testResult.setText("");
+                    }
+                });
         buildBackendOptions();
         selectEntry(BackendCatalog.find(config.getBackendId()));
         refreshMemory();
@@ -86,12 +95,14 @@ public class BrainActivity extends AppCompatActivity implements BrainController.
     protected void onStart() {
         super.onStart();
         BrainController.setReplyListener(this);
+        localModels.onStart();
     }
 
     @Override
     protected void onStop() {
         super.onStop();
         BrainController.setReplyListener(null);
+        localModels.onStop();
         pending = Pending.NONE;
     }
 
@@ -113,6 +124,11 @@ public class BrainActivity extends AppCompatActivity implements BrainController.
         chatMeta = findViewById(R.id.BrainChatMeta);
         memoryList = findViewById(R.id.BrainMemoryList);
         diaryList = findViewById(R.id.BrainDiaryList);
+        localModelsLayout = findViewById(R.id.BrainLocalModelsLayout);
+        useGpuSwitch = findViewById(R.id.BrainUseGpu);
+        useGpuSwitch.setChecked(config.isGpuEnabled());
+        useGpuSwitch.setOnCheckedChangeListener((button, isChecked) ->
+                config.setGpuEnabled(isChecked));
 
         MaterialButton saveAndTest = findViewById(R.id.BrainSaveAndTest);
         saveAndTest.setOnClickListener(v -> saveAndTest());
@@ -166,7 +182,9 @@ public class BrainActivity extends AppCompatActivity implements BrainController.
         urlLayout.setVisibility(entry.needsUrl ? View.VISIBLE : View.GONE);
         modelLayout.setVisibility(entry.needsModel ? View.VISIBLE : View.GONE);
         apiKeyLayout.setVisibility(entry.needsApiKey ? View.VISIBLE : View.GONE);
-        intervalLayout.setVisibility(entry.isRemote ? View.VISIBLE : View.GONE);
+        localModelsLayout.setVisibility(entry.needsLocalModel ? View.VISIBLE : View.GONE);
+        boolean isModelBacked = entry.isRemote || entry.needsLocalModel;
+        intervalLayout.setVisibility(isModelBacked ? View.VISIBLE : View.GONE);
 
         urlInput.setText(config.getUrl(entry.id, entry.defaultUrl));
         modelInput.setText(config.getModel(entry.id, entry.defaultModel));
@@ -193,6 +211,13 @@ public class BrainActivity extends AppCompatActivity implements BrainController.
             return;
         }
         config.setIntervalSeconds(parseInterval(textOf(intervalInput)));
+
+        if (entry.needsLocalModel && !com.cfks.goosedroid.brain.model.ModelDownloads.isDownloaded(
+                this, BackendCatalog.getSelectedLocalModel(config))) {
+            testResult.setText(R.string.BrainModelMissing);
+            BrainController.reloadConfig(this);
+            return;
+        }
 
         BrainController.reloadConfig(this);
         selectEntry(entry);

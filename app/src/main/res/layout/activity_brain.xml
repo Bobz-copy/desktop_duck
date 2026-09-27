@@ -126,6 +126,34 @@
                         android:textSize="13sp"
                         android:visibility="gone" />
 
+                    <LinearLayout
+                        android:id="@+id/BrainLocalModelsLayout"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:orientation="vertical"
+                        android:visibility="gone">
+
+                        <LinearLayout
+                            android:id="@+id/BrainLocalModels"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical" />
+
+                        <com.google.android.material.materialswitch.MaterialSwitch
+                            android:id="@+id/BrainUseGpu"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:text="@string/BrainUseGpu" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/BrainUseGpuHint"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+
                     <com.google.android.material.textfield.TextInputLayout
                         android:id="@+id/BrainUrlLayout"
                         android:layout_width="match_parent"

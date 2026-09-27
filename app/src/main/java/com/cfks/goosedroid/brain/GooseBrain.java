@@ -213,7 +213,11 @@ public class GooseBrain {
             int maxLength = trigger.kind == BrainTrigger.Kind.DIARY
                     ? PromptBuilder.DIARY_MAX_SAY_LENGTH : BrainIntent.MAX_SAY_LENGTH;
             BrainIntent intent = IntentParser.parse(fullText, maxLength);
-            if (intent == null) {
+            if (intent != null && PromptBuilder.isToneExample(intent.say)) {
+                // Un ejemplo copiado no es una frase propia
+                intent = new BrainIntent("", intent.mood, intent.action, intent.remember);
+            }
+            if (intent == null || intent.isEmpty()) {
                 onError(new LlmException(LlmException.Kind.BAD_RESPONSE,
                         "El modelo respondió algo que no se pudo interpretar"));
                 return;

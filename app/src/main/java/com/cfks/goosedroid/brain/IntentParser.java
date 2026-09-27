@@ -138,12 +138,27 @@ public final class IntentParser {
                 && isQuote(text.charAt(text.length() - 1))) {
             text = text.substring(1, text.length() - 1).trim();
         }
+        // Solo puntuación ("," o "...") es ruido del modelo, no una frase
+        if (!hasMeaningfulCharacter(text)) return "";
         if (text.length() <= maxLength) return text;
 
         String cut = text.substring(0, maxLength - 1);
         int lastSpace = cut.lastIndexOf(' ');
         if (lastSpace > maxLength / 2) cut = cut.substring(0, lastSpace);
         return cut.trim() + ELLIPSIS;
+    }
+
+    /** Letras, números o emojis. */
+    private static boolean hasMeaningfulCharacter(String text) {
+        for (int i = 0; i < text.length(); ) {
+            int codePoint = text.codePointAt(i);
+            if (Character.isLetterOrDigit(codePoint)
+                    || Character.getType(codePoint) == Character.OTHER_SYMBOL) {
+                return true;
+            }
+            i += Character.charCount(codePoint);
+        }
+        return false;
     }
 
     private static boolean isQuote(char c) {

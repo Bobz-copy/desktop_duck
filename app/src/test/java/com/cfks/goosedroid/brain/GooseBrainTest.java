@@ -151,6 +151,28 @@ public class GooseBrainTest {
     }
 
     @Test
+    public void copiedToneExample_losesTheSpeechButKeepsTheAction() {
+        primary.response = "{\"say\": \"¿Eso que tenés es pan? Compartí.\", "
+                + "\"mood\": \"HUNGRY\", \"action\": \"HONK\"}";
+
+        brain.think(PET, PETTED);
+
+        BrainIntent intent = recorder.intents.get(0);
+        assertFalse(intent.hasSpeech());
+        assertEquals(BrainAction.HONK, intent.action);
+        assertEquals("primary", recorder.backendIds.get(0));
+    }
+
+    @Test
+    public void copiedToneExampleWithNothingElse_fallsBack() {
+        primary.response = "{\"say\": \"Todos duermen. Momento perfecto para el caos.\"}";
+
+        brain.think(PET, PETTED);
+
+        assertEquals("fallback", recorder.backendIds.get(0));
+    }
+
+    @Test
     public void unavailablePrimary_usesFallbackDirectly() {
         primary.isAvailable = false;
 

@@ -104,4 +104,19 @@
     <string name="BrainDiaryTitle">Diary</string>
     <string name="BrainDiaryEmpty">No entries yet. It writes one every night.</string>
     <string name="BrainDiaryWrite">Write the entry for today</string>
+    <string name="BrainUseGpu">Use the GPU</string>
+    <string name="BrainUseGpuHint">Faster on some phones, slower on others. Try both.</string>
+    <string name="BrainModelSummary">%1$s License: %2$s.</string>
+    <string name="BrainModelDownload">Download</string>
+    <string name="BrainModelDelete">Delete</string>
+    <string name="BrainModelCancel">Cancel download</string>
+    <string name="BrainModelReady">Downloaded</string>
+    <string name="BrainModelNotDownloaded">Not downloaded</string>
+    <string name="BrainModelDownloading">Starting download…</string>
+    <string name="BrainModelProgress">%1$d of %2$d MB</string>
+    <string name="BrainModelFailed">Download failed: %1$s</string>
+    <string name="BrainModelOneAtATime">Another model is downloading. Wait for it to finish.</string>
+    <string name="BrainModelDownloadQuestion">Download %1$s (%2$d MB)? Better over Wi-Fi.</string>
+    <string name="BrainModelDeleteQuestion">Delete %1$s from the phone?</string>
+    <string name="BrainModelMissing">Download the chosen model first. Meanwhile the goose uses templates.</string>
 </resources>

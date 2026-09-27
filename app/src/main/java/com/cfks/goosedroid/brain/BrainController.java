@@ -74,6 +74,8 @@ public final class BrainController {
         rebuildBrain();
         slowCheckTimer = 0f;
         wasSleeping = false;
+        lastAction = BrainAction.NONE;
+        secondLastAction = BrainAction.NONE;
     }
 
     public static void stop() {
@@ -360,8 +362,21 @@ public final class BrainController {
         } else {
             TheGoose.showEmoji(emojiFor(intent.mood));
         }
-        performAction(intent.action);
+
+        // Los modelos chicos repiten la misma acción: una tercera vez seguida no
+        // se ejecuta
+        BrainAction action = intent.action;
+        boolean isThirdInARow = action != BrainAction.NONE
+                && action == lastAction && action == secondLastAction;
+        secondLastAction = lastAction;
+        lastAction = action;
+        if (!isThirdInARow) {
+            performAction(action);
+        }
     }
+
+    private static BrainAction lastAction = BrainAction.NONE;
+    private static BrainAction secondLastAction = BrainAction.NONE;
 
     private static String emojiFor(BrainMood mood) {
         switch (mood) {
