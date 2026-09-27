@@ -20,7 +20,6 @@ public class GooseBrain {
     /** Tras varias fallas seguidas se deja descansar al backend principal. */
     static final int FAILURES_BEFORE_BACKOFF = 3;
     static final long BACKOFF_MS = 5 * 60_000L;
-    private static final int DIARY_MAX_SAY_LENGTH = 300;
 
     /** Recibe lo que el cerebro decidió. */
     public interface Listener {
@@ -212,7 +211,7 @@ public class GooseBrain {
             if (!isCurrent(requestGeneration)) return;
 
             int maxLength = trigger.kind == BrainTrigger.Kind.DIARY
-                    ? DIARY_MAX_SAY_LENGTH : BrainIntent.MAX_SAY_LENGTH;
+                    ? PromptBuilder.DIARY_MAX_SAY_LENGTH : BrainIntent.MAX_SAY_LENGTH;
             BrainIntent intent = IntentParser.parse(fullText, maxLength);
             if (intent == null) {
                 onError(new LlmException(LlmException.Kind.BAD_RESPONSE,
@@ -222,6 +221,10 @@ public class GooseBrain {
 
             if (backend != fallback) {
                 recordSuccess();
+            }
+            if (!PromptBuilder.allowsMemory(trigger)) {
+                // Un recuerdo que no salió de algo dicho por el humano es relleno
+                intent = new BrainIntent(intent.say, intent.mood, intent.action, "");
             }
             if (intent.hasMemory() && memory != null) {
                 memory.remember(intent.remember);

@@ -87,9 +87,11 @@ public final class BrainController {
     /** Vuelve a leer la configuración; llamar después de cambiarla. */
     public static void reloadConfig(Context context) {
         ensureInitialized(context);
-        if (brain != null) {
-            brain.release();
+        if (brain == null) {
+            ensureBrain(context);
+            return;
         }
+        brain.release();
         rebuildBrain();
     }
 
@@ -178,12 +180,39 @@ public final class BrainController {
     }
 
     /**
+     * Pensamiento pedido por el juego. Solo con el ganso en pantalla.
+     *
      * @return true si el ganso empezó a pensar
      */
     public static boolean requestThought(BrainTrigger.Kind kind, String detail) {
         if (brain == null || !TheGoose.isRunning()) return false;
         recordTriggerAsEvent(kind);
         return brain.think(buildSnapshot(), new BrainTrigger(kind, detail));
+    }
+
+    /**
+     * Pensamiento pedido desde una pantalla de la app. Funciona aunque el ganso
+     * no esté en pantalla.
+     *
+     * @return true si el ganso empezó a pensar
+     */
+    public static boolean think(Context context, BrainTrigger.Kind kind, String detail) {
+        ensureBrain(context);
+        if (kind == BrainTrigger.Kind.CHAT) {
+            recordEvent("tu humano te escribió: " + detail);
+        }
+        return brain.think(buildSnapshot(), new BrainTrigger(kind, detail));
+    }
+
+    private static void ensureBrain(Context context) {
+        ensureInitialized(context);
+        if (brain != null) return;
+        // Sin el ganso en pantalla nadie cargó todavía el estado de la mascota
+        com.cfks.goosedroid.PetRepository.ensureLoaded(appContext);
+        GooseEvolution.init(appContext);
+        GooseLLM.initialize(appContext);
+        GooseSystemReactions.init(appContext);
+        rebuildBrain();
     }
 
     private static void recordTriggerAsEvent(BrainTrigger.Kind kind) {

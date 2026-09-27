@@ -26,7 +26,9 @@ public final class BrainTrigger {
         /** Empezó a dormir: contar un sueño. */
         DREAM(false),
         /** El humano volvió después de un rato. El detalle dice cuánto. */
-        GREETING(false);
+        GREETING(false),
+        /** El humano está probando la configuración del cerebro. */
+        TEST(true);
 
         private final boolean isUserInitiated;
 

@@ -22,6 +22,11 @@
             </intent-filter>
         </activity>
         <activity
+            android:name=".BrainActivity"
+            android:exported="false"
+            android:parentActivityName=".MainActivity"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
             android:name=".CustomizeActivity"
             android:exported="false"
             android:parentActivityName=".MainActivity" />

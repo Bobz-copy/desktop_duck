@@ -226,6 +226,12 @@ public class MainActivity extends AppCompatActivity {
             });
         }
 
+        View brainButton = findViewById(R.id.BrainButton);
+        if (brainButton != null) {
+            brainButton.setOnClickListener(v ->
+                    startActivity(new Intent(MainActivity.this, BrainActivity.class)));
+        }
+
         // Customize button
         CustomizeButton = findViewById(R.id.CustomizeButton);
         if (CustomizeButton != null) {

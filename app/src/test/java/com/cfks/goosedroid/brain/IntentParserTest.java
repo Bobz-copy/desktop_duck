@@ -88,6 +88,28 @@ public class IntentParserTest {
     }
 
     @Test
+    public void parse_actionWithSmallTypos_isRecovered() {
+        assertEquals(BrainAction.LOOK_AROUND,
+                IntentParser.parse("{\"action\": \"LOOK_ARROUND\"}").action);
+        assertEquals(BrainAction.LOOK_AROUND,
+                IntentParser.parse("{\"action\": \"LOOKAROUND\"}").action);
+        assertEquals(BrainAction.ZOOMIES,
+                IntentParser.parse("{\"action\": \"ZOOMIE\"}").action);
+    }
+
+    @Test
+    public void parse_inventedActions_areNotForcedIntoARealOne() {
+        assertEquals(BrainAction.NONE,
+                IntentParser.parse("{\"say\": \"x\", \"action\": \"WHISK\"}").action);
+        assertEquals(BrainAction.NONE,
+                IntentParser.parse("{\"say\": \"x\", \"action\": \"¡ZARPAO!\"}").action);
+        assertEquals(BrainAction.NONE,
+                IntentParser.parse("{\"say\": \"x\", \"action\": \"NAPA\"}").action);
+        assertEquals(BrainAction.NONE,
+                IntentParser.parse("{\"say\": \"x\", \"action\": \"EXPLODE\"}").action);
+    }
+
+    @Test
     public void parse_nullRemember_countsAsEmpty() {
         BrainIntent intent = IntentParser.parse("{\"say\": \"hola\", \"remember\": null}");
 

@@ -35,12 +35,14 @@ public class OpenAiCompatBackend implements LlmBackend {
     private static final int CONNECT_TIMEOUT_MS = 8_000;
     private static final int READ_TIMEOUT_MS = 60_000;
     private static final int MAX_ERROR_BODY_BYTES = 2_000;
+    private static final int HTTP_BAD_REQUEST = 400;
     private static final int HTTP_UNAUTHORIZED = 401;
     private static final int HTTP_FORBIDDEN = 403;
     private static final int HTTP_TOO_MANY_REQUESTS = 429;
     private static final int HTTP_OK_MIN = 200;
     private static final int HTTP_OK_MAX = 299;
 
+    private final String id;
     private final String baseUrl;
     private final String model;
     private final String apiKey;
@@ -50,6 +52,7 @@ public class OpenAiCompatBackend implements LlmBackend {
         return thread;
     });
 
+    private volatile boolean isStrictModeSupported = true;
     private volatile HttpURLConnection activeConnection;
     private volatile AtomicBoolean activeCancelFlag;
 
@@ -59,6 +62,15 @@ public class OpenAiCompatBackend implements LlmBackend {
      * @param apiKey  clave; puede ir vacía para servidores locales
      */
     public OpenAiCompatBackend(String baseUrl, String model, String apiKey) {
+        this(ID, baseUrl, model, apiKey);
+    }
+
+    /**
+     * @param id identificador con el que se presenta (el mismo motor sirve para
+     *           varias opciones de la pantalla de ajustes)
+     */
+    public OpenAiCompatBackend(String id, String baseUrl, String model, String apiKey) {
+        this.id = id;
         this.baseUrl = normalizeBaseUrl(baseUrl);
         this.model = model != null ? model.trim() : "";
         this.apiKey = apiKey != null ? apiKey.trim() : "";
@@ -78,7 +90,7 @@ public class OpenAiCompatBackend implements LlmBackend {
 
     @Override
     public String getId() {
-        return ID;
+        return id;
     }
 
     @Override
@@ -129,14 +141,16 @@ public class OpenAiCompatBackend implements LlmBackend {
         try {
             if (cancelFlag.get()) throw cancelled();
 
-            connection = open();
-            activeConnection = connection;
-            byte[] body = buildBody(request).toString().getBytes(StandardCharsets.UTF_8);
-            try (OutputStream out = connection.getOutputStream()) {
-                out.write(body);
-            }
-
+            connection = send(request, isStrictModeSupported);
             int status = connection.getResponseCode();
+            if (status == HTTP_BAD_REQUEST && isStrictModeSupported) {
+                // Este servidor no entiende el esquema estricto o el control de
+                // razonamiento: se recuerda y se reintenta con el formato básico.
+                isStrictModeSupported = false;
+                connection.disconnect();
+                connection = send(request, false);
+                status = connection.getResponseCode();
+            }
             if (status < HTTP_OK_MIN || status > HTTP_OK_MAX) {
                 throw errorForStatus(status, readLimited(connection.getErrorStream()));
             }
@@ -168,6 +182,17 @@ public class OpenAiCompatBackend implements LlmBackend {
         }
     }
 
+    private HttpURLConnection send(LlmRequest request, boolean isStrict)
+            throws IOException, LlmException, JSONException {
+        HttpURLConnection connection = open();
+        activeConnection = connection;
+        byte[] body = buildBody(request, isStrict).toString().getBytes(StandardCharsets.UTF_8);
+        try (OutputStream out = connection.getOutputStream()) {
+            out.write(body);
+        }
+        return connection;
+    }
+
     private static LlmException cancelled() {
         return new LlmException(LlmException.Kind.CANCELLED, "Generación cancelada");
     }
@@ -193,7 +218,7 @@ public class OpenAiCompatBackend implements LlmBackend {
         return connection;
     }
 
-    JSONObject buildBody(LlmRequest request) throws JSONException {
+    JSONObject buildBody(LlmRequest request, boolean isStrict) throws JSONException {
         JSONArray messages = new JSONArray();
         if (!request.systemPrompt.isEmpty()) {
             messages.put(new JSONObject()
@@ -210,7 +235,19 @@ public class OpenAiCompatBackend implements LlmBackend {
                 .put("stream", true)
                 .put("max_tokens", request.maxTokens)
                 .put("temperature", (double) request.temperature);
-        if (request.isJsonExpected) {
+        if (isStrict) {
+            // Pensar en voz alta gasta los tokens de la respuesta y no aporta
+            // nada a una frase de ganso
+            body.put("reasoning_effort", "none");
+        }
+        if (isStrict && !request.jsonSchema.isEmpty()) {
+            body.put("response_format", new JSONObject()
+                    .put("type", "json_schema")
+                    .put("json_schema", new JSONObject()
+                            .put("name", "goose_intent")
+                            .put("strict", true)
+                            .put("schema", new JSONObject(request.jsonSchema))));
+        } else if (request.isJsonExpected) {
             body.put("response_format", new JSONObject().put("type", "json_object"));
         }
         return body;

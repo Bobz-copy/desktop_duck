@@ -69,6 +69,7 @@ public class PromptBuilderTest {
         assertTrue(prompt.contains("23 h"));
         assertTrue(prompt.contains("noche"));
         assertTrue(prompt.contains("12 %"));
+        assertFalse("un recuerdo solo se pide en el chat", prompt.contains("remember"));
         assertTrue(prompt.contains("2 horas de vida"));
     }
 
@@ -109,6 +110,49 @@ public class PromptBuilderTest {
 
         assertTrue(prompt.contains("- te acariciaron"));
         assertTrue(prompt.contains("- comiste pan"));
+    }
+
+    @Test
+    public void userPrompt_mentionsBatteryOnlyWhenItMatters() {
+        BrainTrigger idle = BrainTrigger.of(BrainTrigger.Kind.IDLE_THOUGHT);
+
+        String normal = builder.buildUserPrompt(basePet().battery(64, false).build(), idle, null);
+        String low = builder.buildUserPrompt(basePet().battery(15, false).build(), idle, null);
+        String charging = builder.buildUserPrompt(basePet().battery(64, true).build(), idle, null);
+
+        assertFalse(normal.toLowerCase().contains("batería"));
+        assertTrue(low.contains("15 %"));
+        assertTrue(charging.contains("cargando"));
+    }
+
+    @Test
+    public void chatTrigger_isTheOnlyOneThatAsksForAMemory() {
+        LlmRequest chat = builder.build(basePet().build(),
+                new BrainTrigger(BrainTrigger.Kind.CHAT, "hola"), null);
+        LlmRequest petted = builder.build(basePet().build(),
+                BrainTrigger.of(BrainTrigger.Kind.PETTED), null);
+
+        assertTrue(chat.userPrompt.contains("remember"));
+        assertTrue(chat.jsonSchema.contains("remember"));
+        assertFalse(petted.userPrompt.contains("remember"));
+        assertFalse(petted.jsonSchema.contains("remember"));
+        assertFalse(chat.systemPrompt.contains("remember"));
+    }
+
+    @Test
+    public void schema_restrictsActionsAndMoodsToTheRealOnes() throws Exception {
+        LlmRequest request = builder.build(basePet().build(),
+                BrainTrigger.of(BrainTrigger.Kind.PETTED), null);
+
+        org.json.JSONObject schema = new org.json.JSONObject(request.jsonSchema);
+        org.json.JSONObject properties = schema.getJSONObject("properties");
+
+        assertEquals(BrainAction.values().length,
+                properties.getJSONObject("action").getJSONArray("enum").length());
+        assertEquals(BrainMood.values().length,
+                properties.getJSONObject("mood").getJSONArray("enum").length());
+        assertFalse(schema.getBoolean("additionalProperties"));
+        assertEquals(3, schema.getJSONArray("required").length());
     }
 
     @Test

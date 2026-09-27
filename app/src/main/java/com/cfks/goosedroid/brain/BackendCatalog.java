@@ -93,6 +93,6 @@ public final class BackendCatalog {
         String url = entry.needsUrl ? config.getUrl(entry.id, entry.defaultUrl) : entry.defaultUrl;
         String model = config.getModel(entry.id, entry.defaultModel);
         String apiKey = entry.needsApiKey ? config.getApiKey(entry.id) : "";
-        return new OpenAiCompatBackend(url, model, apiKey);
+        return new OpenAiCompatBackend(entry.id, url, model, apiKey);
     }
 }

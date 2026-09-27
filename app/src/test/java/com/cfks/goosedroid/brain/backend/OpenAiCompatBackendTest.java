@@ -125,7 +125,58 @@ public class OpenAiCompatBackendTest {
         assertEquals("system", body.getJSONArray("messages").getJSONObject(0).getString("role"));
         assertEquals("hola", body.getJSONArray("messages").getJSONObject(1).getString("content"));
         assertEquals("json_object", body.getJSONObject("response_format").getString("type"));
+        assertEquals("none", body.getString("reasoning_effort"));
         assertEquals("Bearer secreto", lastAuthHeader);
+    }
+
+    @Test
+    public void requestWithSchema_asksForStrictJson() throws Exception {
+        respondWith(200, "text/event-stream", chunk("ok") + "data: [DONE]\n\n");
+        Recorder recorder = new Recorder();
+        LlmRequest withSchema = LlmRequest.builder().userPrompt("hola")
+                .jsonSchema("{\"type\":\"object\"}").build();
+
+        new OpenAiCompatBackend(baseUrl, "qwen3", "").generate(withSchema, recorder);
+        recorder.await();
+        captureRequest();
+
+        JSONObject format = new JSONObject(lastRequestBody).getJSONObject("response_format");
+        assertEquals("json_schema", format.getString("type"));
+        assertTrue(format.getJSONObject("json_schema").getBoolean("strict"));
+        assertEquals("object",
+                format.getJSONObject("json_schema").getJSONObject("schema").getString("type"));
+    }
+
+    @Test
+    public void serverRejectingStrictMode_isRetriedWithBasicFormatAndRemembered() throws Exception {
+        respondWith(400, "application/json", "{\"error\":\"unknown field\"}");
+        respondWith(200, "text/event-stream", chunk("uno") + "data: [DONE]\n\n");
+        respondWith(200, "text/event-stream", chunk("dos") + "data: [DONE]\n\n");
+        OpenAiCompatBackend backend = new OpenAiCompatBackend(baseUrl, "viejo", "");
+        LlmRequest withSchema = LlmRequest.builder().userPrompt("hola")
+                .jsonSchema("{\"type\":\"object\"}").build();
+
+        Recorder first = new Recorder();
+        backend.generate(withSchema, first);
+        first.await();
+        assertNull(first.error);
+        assertEquals("uno", first.text);
+
+        captureRequest();
+        assertTrue(new JSONObject(lastRequestBody).has("reasoning_effort"));
+        captureRequest();
+        JSONObject retry = new JSONObject(lastRequestBody);
+        assertFalse(retry.has("reasoning_effort"));
+        assertEquals("json_object", retry.getJSONObject("response_format").getString("type"));
+
+        Recorder second = new Recorder();
+        backend.generate(withSchema, second);
+        second.await();
+        assertEquals("dos", second.text);
+        captureRequest();
+        assertFalse("el segundo pedido ya va en formato básico",
+                new JSONObject(lastRequestBody).has("reasoning_effort"));
+        assertEquals(3, server.getRequestCount());
     }
 
     @Test

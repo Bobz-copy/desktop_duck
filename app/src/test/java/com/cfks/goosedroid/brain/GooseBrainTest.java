@@ -268,13 +268,25 @@ public class GooseBrainTest {
     }
 
     @Test
-    public void rememberField_isStoredInMemory() {
+    public void rememberField_isStoredWhenTheHumanSaidSomething() {
         primary.response = "{\"say\": \"ok\", \"remember\": \"Mi humano se llama Pedro\"}";
 
-        brain.think(PET, PETTED);
+        brain.think(PET, new BrainTrigger(BrainTrigger.Kind.CHAT, "me llamo Pedro"));
 
         assertEquals(1, memory.getFacts().size());
         assertEquals("Mi humano se llama Pedro", memory.getFacts().get(0));
+        assertTrue(recorder.intents.get(0).hasMemory());
+    }
+
+    @Test
+    public void rememberField_isDroppedOutsideOfChat() {
+        primary.response = "{\"say\": \"ok\", \"remember\": \"hoy es miércoles\"}";
+
+        brain.think(PET, PETTED);
+        brain.think(PET, IDLE);
+
+        assertTrue(memory.getFacts().isEmpty());
+        assertFalse(recorder.intents.get(0).hasMemory());
     }
 
     @Test
