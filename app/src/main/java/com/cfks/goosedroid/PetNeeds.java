@@ -10,10 +10,25 @@ public class PetNeeds {
     public float energy = 100f;     // 0 = cansado
     public float happiness = 75f;   // 0 = triste
 
-    // Tasas de decaimiento (por segundo)
-    private static final float HUNGER_RATE = 0.5f;    // ~3.3 min para 100
-    private static final float ENERGY_RATE = 0.3f;    // ~5.5 min para 100
-    private static final float HAPPINESS_RATE = 0.2f; // ~8.3 min para 100
+    private static final float SECONDS_PER_HOUR = 3600f;
+
+    // Tasas de decaimiento (por segundo), en escala de horas: una mascota se
+    // cuida unas pocas veces al día, no cada tres minutos.
+    public static final float HUNGER_RATE = 100f / (8f * SECONDS_PER_HOUR);     // 0 -> 100 en 8 h
+    public static final float ENERGY_RATE = 100f / (12f * SECONDS_PER_HOUR);    // 100 -> 0 en 12 h
+    public static final float HAPPINESS_RATE = 100f / (6f * SECONDS_PER_HOUR);  // 100 -> 0 en 6 h
+    /** Pérdida extra de felicidad por cada necesidad descuidada. */
+    public static final float NEGLECT_HAPPINESS_RATE = HAPPINESS_RATE * 0.5f;
+
+    // Tiempo sin pantalla: el ganso descansa, así que recupera energía, y lo
+    // demás decae a media velocidad.
+    public static final float OFFLINE_DECAY_FACTOR = 0.5f;
+    public static final float OFFLINE_ENERGY_RECOVERY_RATE = 100f / (8f * SECONDS_PER_HOUR);
+
+    // Pisos para el tiempo offline: volver tras una noche nunca encuentra a la
+    // mascota en el peor estado posible.
+    public static final float OFFLINE_MAX_HUNGER = 85f;
+    public static final float OFFLINE_MIN_HAPPINESS = 25f;
 
     // Timestamp de ultima actualizacion
     private long lastUpdateTime = System.currentTimeMillis();
@@ -48,10 +63,10 @@ public class PetNeeds {
 
         // Efectos cruzados - hambre y cansancio afectan felicidad
         if (hunger > 80) {
-            happiness = Math.max(0, happiness - 0.1f * deltaTime);
+            happiness = Math.max(0, happiness - NEGLECT_HAPPINESS_RATE * deltaTime);
         }
         if (energy < 20) {
-            happiness = Math.max(0, happiness - 0.1f * deltaTime);
+            happiness = Math.max(0, happiness - NEGLECT_HAPPINESS_RATE * deltaTime);
         }
     }
 
@@ -61,19 +76,27 @@ public class PetNeeds {
      */
     public void updateOfflineTime() {
         long currentTime = System.currentTimeMillis();
-        float elapsedSeconds = (currentTime - lastUpdateTime) / 1000f;
-
-        // Limitar el tiempo offline a 1 hora para evitar cambios drasticos
-        elapsedSeconds = Math.min(elapsedSeconds, 3600f);
-
-        if (elapsedSeconds > 0) {
-            // Decaimiento durante tiempo offline (reducido a 50% de la tasa normal)
-            hunger = Math.min(100, hunger + (HUNGER_RATE * 0.5f) * elapsedSeconds);
-            energy = Math.max(0, energy - (ENERGY_RATE * 0.5f) * elapsedSeconds);
-            happiness = Math.max(0, happiness - (HAPPINESS_RATE * 0.5f) * elapsedSeconds);
-        }
-
+        applyOfflineTime((currentTime - lastUpdateTime) / 1000f);
         lastUpdateTime = currentTime;
+    }
+
+    /**
+     * Aplica el efecto de un período sin pantalla.
+     * Un reloj del sistema atrasado da un tiempo negativo, que se ignora.
+     */
+    public void applyOfflineTime(float elapsedSeconds) {
+        if (elapsedSeconds <= 0) return;
+
+        // Los pisos solo frenan el decaimiento offline: no mejoran un valor que
+        // ya estaba peor.
+        float hungerCap = Math.max(hunger, OFFLINE_MAX_HUNGER);
+        float happinessFloor = Math.min(happiness, OFFLINE_MIN_HAPPINESS);
+
+        hunger = Math.min(hungerCap,
+                hunger + HUNGER_RATE * OFFLINE_DECAY_FACTOR * elapsedSeconds);
+        happiness = Math.max(happinessFloor,
+                happiness - HAPPINESS_RATE * OFFLINE_DECAY_FACTOR * elapsedSeconds);
+        energy = Math.min(100, energy + OFFLINE_ENERGY_RECOVERY_RATE * elapsedSeconds);
     }
 
     /**

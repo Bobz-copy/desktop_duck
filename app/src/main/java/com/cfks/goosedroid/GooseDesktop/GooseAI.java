@@ -436,18 +436,20 @@ public class GooseAI {
         }
 
         // MEDIUM: Seek attention if ignored
-        if (memory.hasBeenIgnoredTooLong() && currentTask == GooseTasks.GooseTask.Wander) {
-            if (Math.random() < 0.02) {
-                setTask(GooseTasks.GooseTask.Seeking, false);
-                touch.showEmoji("?");
-                memory.consecutiveIgnoredCalls++;
-                return;
-            }
+        if (memory.hasBeenIgnoredTooLong() && currentTask == GooseTasks.GooseTask.Wander
+                && Time.time - lastSeekingTime > SEEKING_COOLDOWN_SECONDS) {
+            lastSeekingTime = Time.time;
+            setTask(GooseTasks.GooseTask.Seeking, false);
+            touch.showEmoji("?");
+            memory.consecutiveIgnoredCalls++;
+            return;
         }
 
         // MEDIUM: Urgent needs
-        if (PetNeeds.get().needsUrgentAttention() && currentTask == GooseTasks.GooseTask.Wander) {
-            if (Math.random() < 0.01) {
+        if (PetNeeds.get().needsUrgentAttention() && currentTask == GooseTasks.GooseTask.Wander
+                && Time.time - lastSeekingTime > SEEKING_COOLDOWN_SECONDS) {
+            lastSeekingTime = Time.time;
+            {
                 setTask(GooseTasks.GooseTask.Seeking, false);
                 touch.showEmoji("!");
                 return;
@@ -1548,11 +1550,16 @@ public class GooseAI {
             callback.getTouchHandler().showEmoji("!");
         }
 
-        if (Vector2.Distance(physics.getPosition(), screenCenter) < 100f ||
-            !PetNeeds.get().needsUrgentAttention()) {
+        // Termina al llegar al centro o tras un tiempo máximo
+        if (Vector2.Distance(physics.getPosition(), screenCenter) < 100f
+                || Time.time - lastSeekingTime > SEEKING_MAX_SECONDS) {
             setTask(GooseTasks.GooseTask.Wander, false);
         }
     }
+
+    private static final float SEEKING_COOLDOWN_SECONDS = 90f;
+    private static final float SEEKING_MAX_SECONDS = 10f;
+    private double lastSeekingTime = -SEEKING_COOLDOWN_SECONDS;
 
     private float pettingTime = 0;
     private int pettingReactionCount = 0;
@@ -1586,8 +1593,6 @@ public class GooseAI {
             String[] petReactions = {"<3", ":)", "~", "mmm", "*happy*"};
             callback.getTouchHandler().showEmoji(petReactions[(int)(Math.random() * petReactions.length)]);
         }
-
-        memory.recordPet();
     }
 
     /**
@@ -1674,10 +1679,51 @@ public class GooseAI {
         setTask(task, true);
     }
 
+    /**
+     * Deja en cero los timers de la tarea que se abandona. Sin esto, una tarea
+     * interrumpida arranca la próxima vez con el reloj de la vez anterior y
+     * termina en un frame.
+     */
+    private void resetTaskTimers(GooseTasks.GooseTask task) {
+        if (task == null) return;
+        switch (task) {
+            case Sleeping:
+                sleepStartTime = 0;
+                break;
+            case Eating:
+                eatStartTime = 0;
+                break;
+            case Playing:
+                playStartTime = 0;
+                break;
+            case Happy:
+                happyStartTime = 0;
+                break;
+            case Sad:
+                sadTime = 0;
+                sadExpressionCount = 0;
+                break;
+            case BeingPetted:
+                onPettingEnd();
+                break;
+            default:
+                break;
+        }
+    }
+
     public void setTask(GooseTasks.GooseTask task, boolean honk) {
         if (honk) {
             Sound.HONCC();
             memory.lastHonkTime = Time.time;
+        }
+
+        GooseTasks.GooseTask previousTask = currentTask;
+        if (previousTask != task) {
+            resetTaskTimers(previousTask);
+            if (task == GooseTasks.GooseTask.BeingPetted) {
+                // Una caricia por sesión de toque, no una por frame
+                memory.recordPet();
+            }
         }
 
         currentTask = task;

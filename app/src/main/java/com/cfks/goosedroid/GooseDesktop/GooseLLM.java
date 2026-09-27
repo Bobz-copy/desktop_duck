@@ -137,7 +137,10 @@ public class GooseLLM {
     }
 
     private static void updateActiveStreak() {
-        long today = System.currentTimeMillis() / (24 * 60 * 60 * 1000);
+        // Día local, no UTC: la racha cambia a medianoche del usuario
+        long nowMs = System.currentTimeMillis();
+        long today = (nowMs + java.util.TimeZone.getDefault().getOffset(nowMs))
+                / (24 * 60 * 60 * 1000);
         if (today == lastActiveDay + 1) {
             consecutiveDaysActive++;
         } else if (today != lastActiveDay) {
@@ -735,20 +738,32 @@ public class GooseLLM {
      * Generate a special thought for milestones
      */
     public static String getMilestoneThought() {
-        if (totalPets == 100) return "100 PETS!!! <3";
-        if (totalPets == 500) return "500 pets! BFF!";
-        if (totalPets == 1000) return "1000 PETS! Legend!";
-
-        if (totalFeeds == 100) return "100 meals! :D";
-        if (totalPlays == 100) return "100 games! Fun!";
-
-        if (consecutiveDaysActive == 7) return "1 WEEK! <3";
-        if (consecutiveDaysActive == 30) return "1 MONTH! WOW!";
-        if (consecutiveDaysActive == 100) return "100 DAYS!!!";
-        if (consecutiveDaysActive == 365) return "1 YEAR! AMAZING!";
-
-        return null;
+        String thought = claimMilestone("pets", totalPets, 1000, "1000 PETS! Legend!");
+        if (thought == null) thought = claimMilestone("pets", totalPets, 500, "500 pets! BFF!");
+        if (thought == null) thought = claimMilestone("pets", totalPets, 100, "100 PETS!!! <3");
+        if (thought == null) thought = claimMilestone("feeds", totalFeeds, 100, "100 meals! :D");
+        if (thought == null) thought = claimMilestone("plays", totalPlays, 100, "100 games! Fun!");
+        if (thought == null) thought = claimMilestone("days", consecutiveDaysActive, 365, "1 YEAR! AMAZING!");
+        if (thought == null) thought = claimMilestone("days", consecutiveDaysActive, 100, "100 DAYS!!!");
+        if (thought == null) thought = claimMilestone("days", consecutiveDaysActive, 30, "1 MONTH! WOW!");
+        if (thought == null) thought = claimMilestone("days", consecutiveDaysActive, 7, "1 WEEK! <3");
+        return thought;
     }
+
+    /**
+     * Devuelve el mensaje la primera vez que se alcanza el umbral y lo marca como
+     * mostrado, para que un hito no se repita mientras el contador no cambia.
+     */
+    private static String claimMilestone(String counter, int value, int threshold, String message) {
+        if (value < threshold || appContext == null) return null;
+        String key = MILESTONE_KEY_PREFIX + counter + "_" + threshold;
+        SharedPreferences prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        if (prefs.getBoolean(key, false)) return null;
+        prefs.edit().putBoolean(key, true).apply();
+        return message;
+    }
+
+    private static final String MILESTONE_KEY_PREFIX = "milestone_shown_";
 
     /**
      * Check if favorite time matches current time

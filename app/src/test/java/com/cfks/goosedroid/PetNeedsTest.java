@@ -7,6 +7,8 @@ import static org.junit.Assert.*;
 
 public class PetNeedsTest {
 
+    private static final float ONE_HOUR = 3600f;
+
     private PetNeeds needs;
 
     @Before
@@ -83,12 +85,11 @@ public class PetNeedsTest {
         needs.happiness = 50f;
         float happinessBefore = needs.happiness;
 
-        // Small delta to isolate cross-effect
-        needs.update(1f);
+        needs.update(ONE_HOUR);
 
         // Happiness decays by base rate + cross-effect
-        float expectedMinDecay = 0.2f + 0.1f; // base + hunger cross-effect
-        assertTrue(happinessBefore - needs.happiness >= expectedMinDecay - 0.01f);
+        float expectedDecay = (PetNeeds.HAPPINESS_RATE + PetNeeds.NEGLECT_HAPPINESS_RATE) * ONE_HOUR;
+        assertEquals(expectedDecay, happinessBefore - needs.happiness, 0.05f);
     }
 
     @Test
@@ -97,10 +98,54 @@ public class PetNeedsTest {
         needs.happiness = 50f;
         float happinessBefore = needs.happiness;
 
-        needs.update(1f);
+        needs.update(ONE_HOUR);
 
-        float expectedMinDecay = 0.2f + 0.1f; // base + energy cross-effect
-        assertTrue(happinessBefore - needs.happiness >= expectedMinDecay - 0.01f);
+        float expectedDecay = (PetNeeds.HAPPINESS_RATE + PetNeeds.NEGLECT_HAPPINESS_RATE) * ONE_HOUR;
+        assertEquals(expectedDecay, happinessBefore - needs.happiness, 0.05f);
+    }
+
+    // ============== ESCALA DE TAMAGOTCHI ==============
+
+    @Test
+    public void update_tenMinutesBarelyChangesNeeds() {
+        needs.update(10 * 60f);
+        assertEquals(50f, needs.hunger, 3f);
+        assertEquals(100f, needs.energy, 3f);
+        assertEquals(75f, needs.happiness, 3f);
+        assertFalse(needs.needsUrgentAttention());
+    }
+
+    @Test
+    public void update_hungerTakesEightHoursFromEmptyToFull() {
+        needs.hunger = 0f;
+        needs.update(8 * ONE_HOUR);
+        assertEquals(100f, needs.hunger, 0.5f);
+    }
+
+    @Test
+    public void offline_wholeNightLeavesPetAliveAndRested() {
+        needs.energy = 30f;
+        needs.applyOfflineTime(10 * ONE_HOUR);
+        assertEquals(PetNeeds.OFFLINE_MAX_HUNGER, needs.hunger, 0.01f);
+        assertEquals(PetNeeds.OFFLINE_MIN_HAPPINESS, needs.happiness, 0.01f);
+        assertEquals(100f, needs.energy, 0.01f);
+    }
+
+    @Test
+    public void offline_doesNotImproveValuesAlreadyBeyondTheFloor() {
+        needs.hunger = 95f;
+        needs.happiness = 10f;
+        needs.applyOfflineTime(ONE_HOUR);
+        assertEquals(95f, needs.hunger, 0.01f);
+        assertEquals(10f, needs.happiness, 0.01f);
+    }
+
+    @Test
+    public void offline_negativeElapsedIsIgnored() {
+        needs.applyOfflineTime(-500f);
+        assertEquals(50f, needs.hunger, 0.01f);
+        assertEquals(100f, needs.energy, 0.01f);
+        assertEquals(75f, needs.happiness, 0.01f);
     }
 
     // ============== ACTIONS ==============

@@ -550,6 +550,18 @@ public class TheGoose implements
         GooseVisualEffects.clearAll();
     }
 
+    /** La evolución exige una felicidad promedio: se muestrea una vez por minuto. */
+    private static void sampleHappinessForEvolution(float deltaTime) {
+        happinessSampleTimer += deltaTime;
+        if (happinessSampleTimer < HAPPINESS_SAMPLE_INTERVAL_SECONDS) return;
+        happinessSampleTimer = 0f;
+        com.cfks.goosedroid.GooseEvolution.recordHappiness(PetNeeds.get().happiness);
+        com.cfks.goosedroid.GooseEvolution.checkEvolution(ctx);
+    }
+
+    private static final float HAPPINESS_SAMPLE_INTERVAL_SECONDS = 60f;
+    private static float happinessSampleTimer = 0f;
+
     private static void accumulatePlayTime() {
         long now = System.currentTimeMillis();
         if (stats.sessionStartTime > 0) {
@@ -710,6 +722,8 @@ public class TheGoose implements
 
             // Check system reactions
             checkSystemReactions();
+
+            sampleHappinessForEvolution(deltaTime);
 
             // Update easter eggs tracking
             GooseEasterEggs.updateMode();

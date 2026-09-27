@@ -262,6 +262,11 @@ public class GooseEasterEggs {
         // Bonus de felicidad
         PetNeeds.get().happiness = Math.min(100, PetNeeds.get().happiness + 15);
 
+        // Los secretos cuentan para la evolución
+        if (context != null) {
+            com.cfks.goosedroid.GooseEvolution.recordSecretFound(context);
+        }
+
         // Sonido especial
         if (!Sound.isSilenced()) {
             Sound.PlayHonk();
