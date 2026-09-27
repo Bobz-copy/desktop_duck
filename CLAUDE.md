@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 GooseDroid is an Android virtual pet / Desktop Goose port. An animated goose lives as a screen overlay with AI behaviors, touch interactions, needs system, evolution, mini-games, and procedural rendering (no sprites — all Canvas draw calls).
 
-**Package**: `com.cfks.goosedroid` | **Java 11** | **Min SDK 24** | **Target SDK 36** | **compileSdk 34**
-**AGP**: 8.12.0 | **Version**: 1.0.4 (versionCode 5)
+**Package**: `com.cfks.goosedroid` | **Java 11** | **Min SDK 24** | **Target SDK 36** | **compileSdk 36**
+**AGP**: 8.12.0 (Gradle 8.13) | **Version**: 1.0.4 (versionCode 5)
 
 ## Build Commands
 

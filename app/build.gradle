@@ -23,7 +23,7 @@ if (keystoreFilepath) {
 
 android {
     namespace 'com.cfks.goosedroid'
-    compileSdk 34
+    compileSdk 36
 
     defaultConfig {
         applicationId "com.cfks.goosedroid"
