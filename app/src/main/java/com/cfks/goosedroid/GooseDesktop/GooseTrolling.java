@@ -36,6 +36,9 @@ public class GooseTrolling {
     private static boolean trollingEnabled = true;
     private static long lastTrollTime = 0;
     private static final long TROLL_COOLDOWN = 60000; // 1 minuto entre trolleos
+    /** Una notificación falsa es más invasiva que una vibración: como mucho cada media hora. */
+    private static final long TROLL_NOTIFICATION_COOLDOWN_MS = 30 * 60_000L;
+    private static long lastTrollNotificationTime = 0;
 
     // ============== MENSAJES TROLLEADORES ==============
 
@@ -173,7 +176,7 @@ public class GooseTrolling {
         int trollType = random.nextInt(5);
         switch (trollType) {
             case 0:
-                sendTrollNotification();
+                trySendTrollNotification();
                 break;
             case 1:
                 vibrateHonk();
@@ -182,7 +185,7 @@ public class GooseTrolling {
                 vibratePattern();
                 break;
             case 3:
-                sendTrollNotification(); // Doble chance de notificación
+                trySendTrollNotification(); // Doble chance de notificación
                 break;
             case 4:
                 vibrateSOS();
@@ -205,9 +208,23 @@ public class GooseTrolling {
     // ============== NOTIFICACIONES FALSAS ==============
 
     /**
+     * Envía una notificación troll si pasó el cooldown.
+     *
+     * @return true si se envió
+     */
+    public static boolean trySendTrollNotification() {
+        if (!trollingEnabled || context == null) return false;
+        long now = System.currentTimeMillis();
+        if (now - lastTrollNotificationTime < TROLL_NOTIFICATION_COOLDOWN_MS) return false;
+        lastTrollNotificationTime = now;
+        sendTrollNotification();
+        return true;
+    }
+
+    /**
      * Enviar una notificación troll.
      */
-    public static void sendTrollNotification() {
+    private static void sendTrollNotification() {
         if (context == null) return;
 
         try {
@@ -244,7 +261,8 @@ public class GooseTrolling {
 
             // Mostrar notificación
             NotificationManagerCompat notificationManager = NotificationManagerCompat.from(context);
-            notificationManager.notify(TROLL_NOTIFICATION_ID + random.nextInt(100), builder.build());
+            // ID fijo: una nueva reemplaza a la anterior en vez de apilarse
+            notificationManager.notify(TROLL_NOTIFICATION_ID, builder.build());
 
             Log.d(TAG, "Troll notification sent: " + title);
         } catch (SecurityException e) {

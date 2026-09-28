@@ -12,6 +12,7 @@ import java.util.*;
 
 public class ConfigureActivity {
     private static final String TAG = "ConfigureActivity";
+    private static final Object FILE_LOCK = new Object();
     private final Context context;
     private Properties properties;
 
@@ -36,22 +37,30 @@ public class ConfigureActivity {
             throw new IllegalArgumentException("Properties cannot be null");
         }
 
-        // Use try-with-resources to ensure stream is closed
-        try (FileOutputStream fileOutputStream = new FileOutputStream(filename);
-             BufferedOutputStream bufferedOutputStream = new BufferedOutputStream(fileOutputStream)) {
-
-            // Get all keys and write them
+        synchronized (FILE_LOCK) {
+            // Merge: las claves que este llamador no conoce se conservan.
+            Properties merged = new Properties();
+            File target = new File(filename);
+            if (target.exists()) {
+                try (InputStream in = new BufferedInputStream(new FileInputStream(target))) {
+                    merged.load(in);
+                } catch (IOException | IllegalArgumentException e) {
+                    Log.w(TAG, "Config existente ilegible; se reescribe: " + filename, e);
+                }
+            }
             for (String key : properties.stringPropertyNames()) {
-                String s = key + " = " + properties.getProperty(key) + "\n";
-                bufferedOutputStream.write(s.getBytes());
+                merged.setProperty(key, properties.getProperty(key));
             }
 
-            // Ensure data is written
-            bufferedOutputStream.flush();
-
-        } catch (IOException e) {
-            Log.e(TAG, "Error saving config file: " + filename, e);
-            throw e; // Re-throw to let caller handle
+            // Si el proceso muere a mitad, el archivo original queda intacto
+            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+            merged.store(buffer, null);
+            try {
+                AtomicFiles.write(target, buffer.toByteArray());
+            } catch (IOException e) {
+                Log.e(TAG, "Error saving config file: " + filename, e);
+                throw e;
+            }
         }
     }
 

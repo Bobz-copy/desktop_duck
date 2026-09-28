@@ -116,8 +116,8 @@ public class GoosePhysics {
 
     private Vector2 lFootPos;
     private Vector2 rFootPos;
-    private float lFootMoveTimeStart = -1f;
-    private float rFootMoveTimeStart = -1f;
+    private double lFootMoveTimeStart = -1f;
+    private double rFootMoveTimeStart = -1f;
     private Vector2 lFootMoveOrigin;
     private Vector2 rFootMoveOrigin;
     private Vector2 lFootMoveDir;
@@ -134,7 +134,7 @@ public class GoosePhysics {
 
     private final FootMark[] footMarks = new FootMark[64];
     private int footMarkIndex = 0;
-    private float trackMudEndTime = -1f;
+    private double trackMudEndTime = -1f;
 
     // ============== CALLBACKS ==============
 
@@ -192,7 +192,7 @@ public class GoosePhysics {
     public Vector2 getLeftFootPos() { return lFootPos; }
     public Vector2 getRightFootPos() { return rFootPos; }
     public FootMark[] getFootMarks() { return footMarks; }
-    public float getTrackMudEndTime() { return trackMudEndTime; }
+    public double getTrackMudEndTime() { return trackMudEndTime; }
 
     public PhysicsState getState() { return state; }
     public SurfaceType getSurface() { return currentSurface; }
@@ -217,7 +217,7 @@ public class GoosePhysics {
     public void setVelocity(Vector2 vel) { velocity = vel; }
     public void setTargetPos(Vector2 target) { targetPos = target; }
     public void setDirection(float dir) { direction = dir; }
-    public void setTrackMudEndTime(float time) { trackMudEndTime = time; }
+    public void setTrackMudEndTime(double time) { trackMudEndTime = time; }
     public void setSurface(SurfaceType surface) { currentSurface = surface; }
     public void setBounceOnEdges(boolean bounce) { bounceOnEdges = bounce; }
     public void setCanMove(boolean canMove) { this.canMove = canMove; }
@@ -740,7 +740,7 @@ public class GoosePhysics {
         } else if (lFootMoveTimeStart > 0f) {
             Vector2 target = Vector2.add(footHome, Vector2.multiply(Vector2.multiply(lFootMoveDir, 0.4f), 5f));
             if (Time.time <= lFootMoveTimeStart + stepTime) {
-                float p = (Time.time - lFootMoveTimeStart) / stepTime;
+                float p = (float) ((Time.time - lFootMoveTimeStart) / stepTime);
                 float eased = Easings.CubicEaseInOut(p);
                 lFootPos = Vector2.Lerp(lFootMoveOrigin, target, eased);
 
@@ -774,7 +774,7 @@ public class GoosePhysics {
                     addFootMark(rFootPos);
                 }
             } else {
-                float p = (Time.time - rFootMoveTimeStart) / stepTime;
+                float p = (float) ((Time.time - rFootMoveTimeStart) / stepTime);
                 float eased = Easings.CubicEaseInOut(p);
                 rFootPos = Vector2.Lerp(rFootMoveOrigin, target, eased);
 

@@ -111,21 +111,36 @@ public class GooseSystemReactions {
      * Obtener nivel de batería.
      */
     public static int getBatteryLevel() {
-        if (context == null) return 100;
+        Intent batteryStatus = readBatteryStatus();
+        if (batteryStatus == null) return 100;
+        int level = batteryStatus.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+        int scale = batteryStatus.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
+        if (level < 0 || scale <= 0) return 100;
+        return (int) ((level / (float) scale) * 100);
+    }
 
+    private static final long BATTERY_CACHE_MS = 60_000L;
+    private static Intent cachedBatteryStatus = null;
+    private static long batteryStatusTimeMs = 0L;
+
+    /**
+     * Estado de la batería, leído del sistema como mucho una vez por minuto:
+     * cada lectura es una llamada entre procesos y esto se consulta seguido.
+     */
+    private static Intent readBatteryStatus() {
+        if (context == null) return null;
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (cachedBatteryStatus != null && now - batteryStatusTimeMs < BATTERY_CACHE_MS) {
+            return cachedBatteryStatus;
+        }
         try {
             IntentFilter filter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
-            Intent batteryStatus = context.registerReceiver(null, filter);
-
-            if (batteryStatus != null) {
-                int level = batteryStatus.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
-                int scale = batteryStatus.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
-                return (int) ((level / (float) scale) * 100);
-            }
-        } catch (Exception e) {
-            Log.w(TAG, "Error getting battery level", e);
+            cachedBatteryStatus = context.registerReceiver(null, filter);
+            batteryStatusTimeMs = now;
+        } catch (RuntimeException e) {
+            Log.w(TAG, "Error reading battery status", e);
         }
-        return 100;
+        return cachedBatteryStatus;
     }
 
     /**
@@ -145,21 +160,11 @@ public class GooseSystemReactions {
      * Verificar si está cargando.
      */
     public static boolean isCharging() {
-        if (context == null) return false;
-
-        try {
-            IntentFilter filter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
-            Intent batteryStatus = context.registerReceiver(null, filter);
-
-            if (batteryStatus != null) {
-                int status = batteryStatus.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
-                return status == BatteryManager.BATTERY_STATUS_CHARGING ||
-                       status == BatteryManager.BATTERY_STATUS_FULL;
-            }
-        } catch (Exception e) {
-            Log.w(TAG, "Error checking charging status", e);
-        }
-        return false;
+        Intent batteryStatus = readBatteryStatus();
+        if (batteryStatus == null) return false;
+        int status = batteryStatus.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
+        return status == BatteryManager.BATTERY_STATUS_CHARGING ||
+               status == BatteryManager.BATTERY_STATUS_FULL;
     }
 
     /**

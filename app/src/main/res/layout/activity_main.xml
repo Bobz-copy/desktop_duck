@@ -38,6 +38,13 @@
             android:text="@string/app_name"
             android:textSize="17sp" />
 
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/BrainButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/BrainOpen" />
+
         <!-- Pet Mode Section -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
@@ -144,6 +151,46 @@
                     android:progressTint="#E91E63"
                     android:visibility="gone" />
 
+                <!-- Hygiene Bar -->
+                <TextView
+                    android:id="@+id/HygieneLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/Hygiene"
+                    android:textSize="12sp"
+                    android:visibility="gone" />
+
+                <ProgressBar
+                    android:id="@+id/HygieneBar"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="8dp"
+                    android:max="100"
+                    android:progress="100"
+                    android:progressTint="#03A9F4"
+                    android:visibility="gone" />
+
+                <!-- Health Bar -->
+                <TextView
+                    android:id="@+id/HealthLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/Health"
+                    android:textSize="12sp"
+                    android:visibility="gone" />
+
+                <ProgressBar
+                    android:id="@+id/HealthBar"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="8dp"
+                    android:max="100"
+                    android:progress="100"
+                    android:progressTint="#8BC34A"
+                    android:visibility="gone" />
+
                 <!-- Action Buttons -->
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -186,6 +233,36 @@
                         android:visibility="gone"
                         style="@style/Widget.Material3.Button.TonalButton" />
 
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:gravity="center"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/CleanButton"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="4dp"
+                        android:layout_weight="1"
+                        android:text="@string/Clean"
+                        android:textSize="12sp"
+                        android:visibility="gone" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/HealButton"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp"
+                        android:layout_weight="1"
+                        android:text="@string/Heal"
+                        android:textSize="12sp"
+                        android:visibility="gone" />
                 </LinearLayout>
 
                 <!-- Customize Button -->

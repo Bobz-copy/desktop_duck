@@ -119,6 +119,7 @@ public class GooseTouchHandler {
     private Vector2 lastTouchPos = null;
     private long touchStartTime = 0;
     private long lastTouchEndTime = 0;
+    private long lastMoveTime = 0;
     private boolean isTouching = false;
     private boolean isBeingPetted = false;
     private boolean isBeingDragged = false;
@@ -333,11 +334,12 @@ public class GooseTouchHandler {
         float dist = Vector2.Distance(goosePos, touchPos);
 
         // Check if touching the goose
-        if (dist < HIT_RADIUS) {
+        if (dist < Math.max(HIT_RADIUS, TheGoose.getTouchRadius())) {
             isTouching = true;
             touchStartPos = touchPos;
             lastTouchPos = touchPos;
             touchStartTime = System.currentTimeMillis();
+            lastMoveTime = touchStartTime;
 
             // Determine touch zone
             currentZone = determineTouchZone(touchPos, goosePos);
@@ -400,7 +402,9 @@ public class GooseTouchHandler {
 
         // Update velocity samples
         if (lastTouchPos != null) {
-            float dt = (currentTime - getLastTouchTime()) / 1000f;
+            // Tiempo desde el evento de movimiento anterior, no desde el toque anterior
+            float dt = (currentTime - lastMoveTime) / 1000f;
+            lastMoveTime = currentTime;
             if (dt > 0) {
                 Vector2 velocity = Vector2.multiply(delta, 1f / dt);
                 addVelocitySample(velocity, currentTime);
@@ -414,14 +418,9 @@ public class GooseTouchHandler {
         }
 
         if (isBeingDragged) {
-            // Update position
-            callback.onPositionChange(touchPos);
-
-            // Update physics if available
-            GoosePhysics physics = callback.getPhysics();
-            if (physics != null) {
-                physics.setPosition(touchPos);
-            }
+            // Copia: la física modifica su posición en el lugar y touchPos
+            // se guarda como lastTouchPos
+            callback.onPositionChange(new Vector2(touchPos.x, touchPos.y));
         } else {
             // Detect patterns
             detectPatterns(touchPos, delta, moveDist);
@@ -452,29 +451,27 @@ public class GooseTouchHandler {
         // Determine gesture
         GestureType gesture = determineGesture(touchPos, duration);
 
-        // Execute gesture
-        if (gesture != GestureType.NONE) {
-            executeGesture(gesture, touchPos);
+        // El estado se resetea pase lo que pase: si un gesto falla, el ganso
+        // no puede quedar "agarrado".
+        try {
+            if (gesture != GestureType.NONE) {
+                executeGesture(gesture, touchPos);
+            }
+            updateCombo(gesture);
+        } finally {
+            if (isBeingDragged) {
+                endDrag(touchPos);
+            }
+            isTouching = false;
+            isBeingPetted = false;
+            isBeingDragged = false;
+            lastTouchEndTime = currentTime;
+            lastGesture = gesture;
+            currentGesture = GestureType.NONE;
+
+            // Return to wandering
+            callback.onTaskChange(GooseTasks.GooseTask.Wander, false);
         }
-
-        // Handle drag end
-        if (isBeingDragged) {
-            endDrag(touchPos);
-        }
-
-        // Update combo
-        updateCombo(gesture);
-
-        // Reset state
-        isTouching = false;
-        isBeingPetted = false;
-        isBeingDragged = false;
-        lastTouchEndTime = currentTime;
-        lastGesture = gesture;
-        currentGesture = GestureType.NONE;
-
-        // Return to wandering
-        callback.onTaskChange(GooseTasks.GooseTask.Wander, false);
     }
 
     // ============== GESTURE DETECTION ==============
@@ -1189,7 +1186,11 @@ public class GooseTouchHandler {
      * Show an emoji/expression above the pet.
      */
     public void showEmoji(String emoji) {
-        currentEmoji = emoji;
+        // Las expresiones escritas en inglés en el código se traducen si el idioma es español;
+        // null queda como "" porque el renderer llama a isEmpty()
+        GoosePhrases.Language language = GooseLLM.isSpanish()
+                ? GoosePhrases.Language.SPANISH : GoosePhrases.Language.ENGLISH;
+        currentEmoji = emoji == null ? "" : GoosePhrases.localizeExpression(emoji, language);
         emojiShowTime = System.currentTimeMillis();
         emojiScale = 0.5f;
         emojiOffsetY = 0f;

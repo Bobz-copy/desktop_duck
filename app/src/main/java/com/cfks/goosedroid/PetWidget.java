@@ -19,6 +19,7 @@ public class PetWidget extends AppWidgetProvider {
     public static final String ACTION_PLAY = "com.cfks.goosedroid.ACTION_PLAY";
     public static final String ACTION_SLEEP = "com.cfks.goosedroid.ACTION_SLEEP";
     public static final String ACTION_REFRESH = "com.cfks.goosedroid.ACTION_REFRESH";
+    static final float MIN_ENERGY_TO_PLAY = 20f;
 
     @Override
     public void onUpdate(Context context, AppWidgetManager appWidgetManager, int[] appWidgetIds) {
@@ -29,48 +30,14 @@ public class PetWidget extends AppWidgetProvider {
 
     @Override
     public void onReceive(Context context, Intent intent) {
+        // Este receptor está exportado (lo exige el sistema para los widgets), así
+        // que solo atiende las actualizaciones del sistema. Los botones van a
+        // PetWidgetActionReceiver, que no es alcanzable desde otras apps.
         super.onReceive(context, intent);
-
-        String action = intent.getAction();
-        if (action == null) return;
-
-        // Security: Verify the intent comes from our own app or the system
-        // Only process our custom actions if they come from a PendingIntent we created
-        // (which uses our package context) or from the system for APPWIDGET_UPDATE
-        String packageName = context.getPackageName();
-
-        // For custom actions, verify the sender is our app
-        if (action.startsWith(packageName)) {
-            // Additional security: Check if this came from a trusted source
-            // PendingIntents created by us will have our package as the creator
-            if (intent.getPackage() != null && !intent.getPackage().equals(packageName)) {
-                // Reject intents explicitly targeting another package
-                return;
-            }
-        }
-
-        switch (action) {
-            case ACTION_FEED:
-                PetNeeds.get().feed();
-                updateAllWidgets(context);
-                break;
-            case ACTION_PLAY:
-                if (PetNeeds.get().energy > 20) {
-                    PetNeeds.get().play();
-                }
-                updateAllWidgets(context);
-                break;
-            case ACTION_SLEEP:
-                PetNeeds.get().sleep();
-                updateAllWidgets(context);
-                break;
-            case ACTION_REFRESH:
-                updateAllWidgets(context);
-                break;
-        }
     }
 
     static void updateAppWidget(Context context, AppWidgetManager appWidgetManager, int appWidgetId) {
+        PetRepository.ensureLoaded(context);
         RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.pet_widget);
 
         // Update pet name and status
@@ -114,7 +81,7 @@ public class PetWidget extends AppWidgetProvider {
     }
 
     private static PendingIntent getPendingSelfIntent(Context context, String action) {
-        Intent intent = new Intent(context, PetWidget.class);
+        Intent intent = new Intent(context, PetWidgetActionReceiver.class);
         intent.setAction(action);
         return PendingIntent.getBroadcast(
                 context, 0, intent,
@@ -131,6 +98,8 @@ public class PetWidget extends AppWidgetProvider {
             case TIRED: return "\uD83D\uDE34"; // Sleeping face
             case SAD: return "\uD83D\uDE22"; // Crying face
             case HAPPY: return "\uD83D\uDE0A"; // Smiling face
+            case DIRTY: return "\uD83D\uDCA9"; // Pile of poo
+            case SICK: return "\uD83E\uDD12"; // Face with thermometer
             default: return "\uD83D\uDC23"; // Baby chick
         }
     }
@@ -142,6 +111,8 @@ public class PetWidget extends AppWidgetProvider {
             case TIRED: return "I need sleep...";
             case SAD: return "Play with me!";
             case HAPPY: return "I'm happy!";
+            case DIRTY: return "I need a bath!";
+            case SICK: return "I feel sick...";
             default: return "Doing fine~";
         }
     }

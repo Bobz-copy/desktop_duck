@@ -147,7 +147,16 @@ public class Sound {
             MediaPlayer player = ref.get();
             if (player == null) {
                 temporaryPlayers.remove(ref);
-            } else if (forceAll || !player.isPlaying()) {
+                continue;
+            }
+            boolean isFinished;
+            try {
+                isFinished = !player.isPlaying();
+            } catch (IllegalStateException e) {
+                // Ya fue liberado por su onCompletion
+                isFinished = true;
+            }
+            if (forceAll || isFinished) {
                 releasePlayer(player);
                 temporaryPlayers.remove(ref);
             }

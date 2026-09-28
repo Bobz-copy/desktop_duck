@@ -62,4 +62,9 @@
     <string name="Accessories">配饰</string>
     <string name="Hat">帽子</string>
     <string name="Accessory">装饰品</string>
+    <string name="OverlayChannelName">屏幕上的鹅</string>
+    <string name="OverlayChannelDescription">让鹅留在屏幕上</string>
+    <string name="OverlayNotificationTitle">鹅出来了</string>
+    <string name="OverlayNotificationText">点击打开 GooseDroid</string>
+    <string name="OverlayNotificationStop">收起</string>
 </resources>

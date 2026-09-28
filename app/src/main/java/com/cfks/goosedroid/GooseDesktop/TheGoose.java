@@ -222,6 +222,7 @@ public class TheGoose implements
     // ============== CONSTANTS ==============
 
     private static final long AUTO_SAVE_INTERVAL_MS = 60000; // 1 minute
+    private static final String ACHIEVEMENT_KEY_PREFIX = "Ach_";
     private static final float DEBUG_TEXT_SIZE = 12f;
 
     // ============== MODULES ==============
@@ -288,12 +289,20 @@ public class TheGoose implements
     public static int OutLineColor = 0xFFD3D3D3;
     public static int MouthColor = 0xFFFFA500;
     public static int EyeColor = 0xFF000000;
-    public static int BodyColor = 0xFFFFFFFF;
+    private static final int DEFAULT_BODY_COLOR = 0xFFFFFFFF;
+    public static int BodyColor = DEFAULT_BODY_COLOR;
+    private static final float BASE_TOUCH_RADIUS = 45f;
+    private static final float MIN_TOUCH_RADIUS = 40f;
 
     // ============== CONFIGURABLE VALUES ==============
 
-    public static float DrawScale = 2.5f;  // Increased default size for better visibility
-    public static float WanderSpeed = 200f;
+    public static final float BASE_DRAW_SCALE = 2.5f;
+    public static final float DEFAULT_WANDER_SPEED = 200f;
+    public static float DrawScale = BASE_DRAW_SCALE;
+    public static float WanderSpeed = DEFAULT_WANDER_SPEED;
+
+    /** Píxeles de pantalla por unidad de mundo (el "DrawSize" de la configuración). */
+    public static float WorldScale = 2.5f;
 
     // ============== EVENT SYSTEM ==============
 
@@ -328,19 +337,23 @@ public class TheGoose implements
     /**
      * Initialize the goose system.
      */
-    public static void Init(Context context, Canvas cvs, ConfigureActivity config) {
+    public static void Init(Context context, ConfigureActivity config,
+                            int worldWidth, int worldHeight) {
         lifecycleState = LifecycleState.INITIALIZING;
 
-        canvas = cvs;
-        ctx = context;
+        // Cada encendido arranca con el reloj de juego en cero y sin restos
+        // del encendido anterior
+        Time.reset();
+        resetStaticState();
+
+        // Contexto de aplicación: el ganso sobrevive a cualquier Activity
+        ctx = context.getApplicationContext();
         ca = config;
+        screenWidth = worldWidth;
+        screenHeight = worldHeight;
 
         // Create singleton instance
         instance = new TheGoose();
-
-        // Get screen dimensions
-        screenWidth = Utils.getScreenWidth(ctx);
-        screenHeight = Utils.getScreenHeight(ctx);
 
         // Initialize modules
         initializeModules();
@@ -387,6 +400,8 @@ public class TheGoose implements
         // Apply initial size multiplier
         DrawScale = 2.5f * com.cfks.goosedroid.GooseEvolution.getSizeMultiplier();
 
+        com.cfks.goosedroid.brain.BrainController.start(ctx);
+
         // Initialize new systems
         GooseSystemReactions.init(ctx);
         GooseEasterEggs.init(ctx);
@@ -403,7 +418,7 @@ public class TheGoose implements
     private static void initializeModules() {
         // Physics
         physics = new GoosePhysics();
-        physics.initPosition((float) canvas.getWidth() / 2, (float) canvas.getHeight() / 2);
+        physics.initPosition(screenWidth / 2f, screenHeight / 2f);
         physics.setScreenBounds(screenWidth, screenHeight);
         physics.setCallback(instance);
 
@@ -414,10 +429,6 @@ public class TheGoose implements
 
         // Local AI/LLM System
         GooseLLM.initialize(ctx);
-
-        // Behavior Tree AI
-        behaviorTree = new GooseBehaviorTree();
-        behaviorTree.setCallback(instance);
 
         // Renderer
         renderer = new GooseRenderer();
@@ -436,6 +447,7 @@ public class TheGoose implements
     }
 
     private static void initializeAchievements() {
+        stats.achievementsUnlocked = 0;
         for (Achievement a : Achievement.values()) {
             unlockedAchievements.put(a, false);
             achievementProgress.put(a, 0);
@@ -479,10 +491,24 @@ public class TheGoose implements
      * Destroy and cleanup.
      */
     public static void destroy() {
+        if (lifecycleState == LifecycleState.UNINITIALIZED
+                || lifecycleState == LifecycleState.DESTROYED) {
+            return;
+        }
+        accumulatePlayTime();
         saveState();
 
         lifecycleState = LifecycleState.DESTROYED;
         broadcastEvent(EventType.DESTROYED, null);
+
+        if (touchHandler != null) {
+            touchHandler.cancelTouch();
+        }
+        com.cfks.goosedroid.brain.BrainController.stop();
+        GooseEasterEggs.deactivateMode();
+        MiniGames.cancelGame();
+        Sound.StopMusic();
+        Sound.releaseAll();
 
         // Cleanup trolling
         GooseTrolling.cleanup();
@@ -503,35 +529,131 @@ public class TheGoose implements
         renderer = null;
         touchHandler = null;
         rig = null;
+        canvas = null;
+    }
+
+    /**
+     * Limpia el estado estático que no debe sobrevivir a un reinicio del overlay.
+     */
+    private static void resetStaticState() {
+        isPaused = false;
+        NightRoutine.reset();
+        isFramePrepared = false;
+        notificationQueue.clear();
+        currentNotification = null;
+        currentThought = "";
+        thoughtDisplayTime = 0f;
+        timeSinceThought = 0f;
+        eventQueue.clear();
+        lastTask = null;
+        lastMood = null;
+        lastAutoSave = System.currentTimeMillis();
+        lastPosition = new Vector2(0, 0);
+        behaviorTree = null;
+        BodyColor = DEFAULT_BODY_COLOR;
+        GooseVisualEffects.clearAll();
+        GooseNotes.reset();
+    }
+
+    static void onNoteTaskStarted() {
+        GooseNotes.prepare(ctx, GooseLLM.isSpanish());
+    }
+
+    static void onNoteTaskEnded() {
+        GooseNotes.place(screenWidth, screenHeight);
+    }
+
+    /** La evolución exige una felicidad promedio: se muestrea una vez por minuto. */
+    private static void sampleHappinessForEvolution(float deltaTime) {
+        happinessSampleTimer += deltaTime;
+        if (happinessSampleTimer < HAPPINESS_SAMPLE_INTERVAL_SECONDS) return;
+        happinessSampleTimer = 0f;
+        com.cfks.goosedroid.GooseEvolution.recordHappiness(PetNeeds.get().happiness);
+        com.cfks.goosedroid.GooseEvolution.checkEvolution(ctx);
+    }
+
+    private static final float HAPPINESS_SAMPLE_INTERVAL_SECONDS = 60f;
+    private static float happinessSampleTimer = 0f;
+
+    private static void accumulatePlayTime() {
+        long now = System.currentTimeMillis();
+        if (stats.sessionStartTime > 0) {
+            stats.totalPlayTimeMs += now - stats.sessionStartTime;
+        }
+        stats.sessionStartTime = now;
+    }
+
+    /**
+     * Cambia el tamaño del mundo (rotación o cambio de tamaño de la ventana).
+     */
+    public static void onWorldSizeChanged(int worldWidth, int worldHeight) {
+        if (worldWidth <= 0 || worldHeight <= 0) return;
+        screenWidth = worldWidth;
+        screenHeight = worldHeight;
+        if (physics != null) {
+            physics.setScreenBounds(worldWidth, worldHeight);
+            Vector2 pos = physics.getPosition();
+            physics.setPosition(new Vector2(
+                    SamMath.Clamp(pos.x, 0f, (float) worldWidth),
+                    SamMath.Clamp(pos.y, 0f, (float) worldHeight)));
+            physics.setTargetPos(new Vector2(worldWidth / 2f, worldHeight / 2f));
+        }
+        MiniGames.setScreenSize(worldWidth, worldHeight);
+    }
+
+    private static void openQuickChat() {
+        if (ctx == null) return;
+        try {
+            ctx.startActivity(com.cfks.goosedroid.QuickChatActivity.createIntent(ctx));
+        } catch (RuntimeException e) {
+            android.util.Log.w("TheGoose", "No se pudo abrir el chat", e);
+        }
+    }
+
+    /** El toque en curso fue cancelado por el sistema: soltar sin ejecutar gesto. */
+    public static void onTouchCancel() {
+        if (touchHandler != null) {
+            touchHandler.cancelTouch();
+        }
+        if (physics != null && physics.getState() == GoosePhysics.PhysicsState.DRAGGED) {
+            physics.endDrag(Vector2.zero);
+        }
+        if (ai != null) {
+            ai.setTask(GooseTasks.GooseTask.Wander, false);
+        }
+    }
+
+    /** Radio, en unidades de mundo, dentro del cual un toque cuenta como sobre el ganso. */
+    public static float getTouchRadius() {
+        return Math.max(MIN_TOUCH_RADIUS, BASE_TOUCH_RADIUS * DrawScale);
+    }
+
+    public static boolean isMiniGamePlaying() {
+        return petModeEnabled && MiniGames.isPlaying();
     }
 
     /**
      * Save current state to config.
      */
     public static void saveState() {
-        if (ca == null) return;
+        if (ctx == null) return;
 
-        // Save needs
-        ca.setIniKey("PetHunger", String.valueOf(PetNeeds.get().hunger));
-        ca.setIniKey("PetEnergy", String.valueOf(PetNeeds.get().energy));
-        ca.setIniKey("PetHappiness", String.valueOf(PetNeeds.get().happiness));
+        accumulatePlayTime();
 
-        // Save personality
-        ca.setIniKey("PersonalityPlayfulness", String.valueOf(PetPersonality.get().playfulness));
-        ca.setIniKey("PersonalityAffection", String.valueOf(PetPersonality.get().affection));
-        ca.setIniKey("PersonalityBravery", String.valueOf(PetPersonality.get().bravery));
-        ca.setIniKey("PersonalityMischief", String.valueOf(PetPersonality.get().mischief));
+        java.util.Properties extra = new java.util.Properties();
+        extra.setProperty("StatTotalPlayTime", String.valueOf(stats.totalPlayTimeMs));
+        extra.setProperty("StatTotalPets", String.valueOf(stats.totalPets));
+        extra.setProperty("StatTotalBoops", String.valueOf(stats.totalBoops));
+        extra.setProperty("StatHighestCombo", String.valueOf(stats.highestCombo));
+        for (Achievement a : Achievement.values()) {
+            Boolean isUnlocked = unlockedAchievements.get(a);
+            Integer progress = achievementProgress.get(a);
+            extra.setProperty(ACHIEVEMENT_KEY_PREFIX + a.name(),
+                    (isUnlocked != null && isUnlocked ? "1" : "0") + ":"
+                            + (progress != null ? progress : 0));
+        }
 
-        // Save statistics
-        ca.setIniKey("StatTotalPlayTime", String.valueOf(stats.totalPlayTimeMs));
-        ca.setIniKey("StatTotalPets", String.valueOf(stats.totalPets));
-        ca.setIniKey("StatTotalBoops", String.valueOf(stats.totalBoops));
-        ca.setIniKey("StatHighestCombo", String.valueOf(stats.highestCombo));
-
-        // Save appearance
-        ca.setIniKey("PetHatId", String.valueOf(PetAppearance.get().hatId));
-        ca.setIniKey("PetAccessoryId", String.valueOf(PetAppearance.get().accessoryId));
-
+        com.cfks.goosedroid.PetRepository.save(ctx, extra);
         stats.lastSaveTime = System.currentTimeMillis();
     }
 
@@ -541,23 +663,21 @@ public class TheGoose implements
     public static void loadState() {
         if (ca == null) return;
 
+        // Necesidades, personalidad y apariencia: una sola vez por proceso.
+        // Si ya están en memoria son más nuevas que el archivo.
+        com.cfks.goosedroid.PetRepository.ensureLoaded(ctx);
+
         try {
-            // Load needs
-            String hunger = ca.getIniKey("PetHunger");
-            if (hunger != null) PetNeeds.get().hunger = Float.parseFloat(hunger);
-
-            String energy = ca.getIniKey("PetEnergy");
-            if (energy != null) PetNeeds.get().energy = Float.parseFloat(energy);
-
-            String happiness = ca.getIniKey("PetHappiness");
-            if (happiness != null) PetNeeds.get().happiness = Float.parseFloat(happiness);
-
-            // Load personality
-            String playfulness = ca.getIniKey("PersonalityPlayfulness");
-            if (playfulness != null) PetPersonality.get().playfulness = Float.parseFloat(playfulness);
-
-            String affection = ca.getIniKey("PersonalityAffection");
-            if (affection != null) PetPersonality.get().affection = Float.parseFloat(affection);
+            for (Achievement a : Achievement.values()) {
+                String saved = ca.getIniKey(ACHIEVEMENT_KEY_PREFIX + a.name());
+                if (saved == null) continue;
+                String[] parts = saved.split(":");
+                if (parts.length != 2) continue;
+                boolean isUnlocked = "1".equals(parts[0]);
+                unlockedAchievements.put(a, isUnlocked);
+                achievementProgress.put(a, Integer.parseInt(parts[1]));
+                if (isUnlocked) stats.achievementsUnlocked++;
+            }
 
             // Load statistics
             String playTime = ca.getIniKey("StatTotalPlayTime");
@@ -566,15 +686,14 @@ public class TheGoose implements
             String totalPets = ca.getIniKey("StatTotalPets");
             if (totalPets != null) stats.totalPets = Integer.parseInt(totalPets);
 
-            // Load appearance
-            String hatId = ca.getIniKey("PetHatId");
-            if (hatId != null) PetAppearance.get().hatId = Integer.parseInt(hatId);
+            String totalBoops = ca.getIniKey("StatTotalBoops");
+            if (totalBoops != null) stats.totalBoops = Integer.parseInt(totalBoops);
 
-            String accessoryId = ca.getIniKey("PetAccessoryId");
-            if (accessoryId != null) PetAppearance.get().accessoryId = Integer.parseInt(accessoryId);
+            String highestCombo = ca.getIniKey("StatHighestCombo");
+            if (highestCombo != null) stats.highestCombo = Integer.parseInt(highestCombo);
 
-        } catch (Exception e) {
-            // Ignore parsing errors, use defaults
+        } catch (NumberFormatException e) {
+            android.util.Log.w("TheGoose", "Estado guardado con formato inválido; se usan valores por defecto", e);
         }
     }
 
@@ -598,9 +717,6 @@ public class TheGoose implements
             checkMoodChange();
             checkCriticalNeeds();
             updateHappinessTracking(deltaTime);
-
-            // Update behavior tree
-            updateBehaviorTree(deltaTime);
 
             // Update thought system
             updateThoughts(deltaTime);
@@ -629,9 +745,19 @@ public class TheGoose implements
             // Check system reactions
             checkSystemReactions();
 
+            sampleHappinessForEvolution(deltaTime);
+
             // Update easter eggs tracking
-            GooseEasterEggs.checkPatience();
-            GooseEasterEggs.checkSpecialDate();
+            GooseEasterEggs.updateMode();
+            NightRoutine.update(deltaTime);
+            // Chequeos por reloj de pared: alcanza con cada tanto, no en cada frame
+            wallClockCheckTimer += deltaTime;
+            if (wallClockCheckTimer >= WALL_CLOCK_CHECK_INTERVAL_SECONDS) {
+                wallClockCheckTimer = 0f;
+                GooseEasterEggs.checkPatience();
+                GooseEasterEggs.checkSpecialDate();
+                checkTimeBasedAchievements();
+            }
 
             // Update sound effects
             GooseSoundEffects.update();
@@ -649,6 +775,8 @@ public class TheGoose implements
 
         // Update physics
         physics.update(ai.isOverrideExtendNeck());
+
+        GooseNotes.update(deltaTime, physics.getPosition());
 
         // Track distance
         trackDistance();
@@ -673,8 +801,11 @@ public class TheGoose implements
         stats.updateAverageHappiness(PetNeeds.get().happiness);
 
         // Check time-based achievements
-        checkTimeBasedAchievements();
     }
+
+    /** La medianoche exacta (easter egg) dura un minuto: este intervalo no se la pierde. */
+    private static final float WALL_CLOCK_CHECK_INTERVAL_SECONDS = 20f;
+    private static float wallClockCheckTimer = 0f;
 
     /**
      * Check achievements based on time of day and play duration.
@@ -780,6 +911,7 @@ public class TheGoose implements
                 rig.setExpression(GooseRig.Expression.SLEEPY);
                 break;
             case HUNGRY:
+            case SICK:
                 rig.setExpression(GooseRig.Expression.SAD);
                 break;
             default:
@@ -794,34 +926,57 @@ public class TheGoose implements
     /**
      * Render the goose.
      */
-    public static void Render() {
-        if (lifecycleState != LifecycleState.RUNNING) return;
+    public static boolean isRunning() {
+        return lifecycleState == LifecycleState.RUNNING;
+    }
 
-        // Apply easter egg mode effects
+    /**
+     * Render usando el canvas del frame actual. El canvas de onDraw no está
+     * garantizado que sea el mismo objeto entre frames.
+     */
+    /**
+     * Actualiza el estado de dibujo (rig, partículas, colores). Una vez por frame,
+     * antes de dibujar cualquier capa.
+     */
+    public static void PrepareFrame() {
+        if (lifecycleState != LifecycleState.RUNNING || renderer == null) return;
+
         applyEasterEggEffects();
-
         applyColors();
+        renderer.updateFrame(physics, rig, ai, petModeEnabled);
+        isFramePrepared = true;
+    }
 
-        // Render visual effects (background layer)
-        if (physics != null) {
+    private static boolean isFramePrepared = false;
+
+    /**
+     * Dibuja una capa sobre el canvas del frame actual.
+     */
+    public static void Render(Canvas frameCanvas, GooseRenderer.Layer layer) {
+        if (lifecycleState != LifecycleState.RUNNING || frameCanvas == null
+                || renderer == null || physics == null || !isFramePrepared) {
+            return;
+        }
+        canvas = frameCanvas;
+
+        if (layer == GooseRenderer.Layer.WORLD) {
             GooseVisualEffects.render(canvas, physics.getPosition());
+            GooseNotes.render(canvas);
         }
 
-        renderer.render(canvas, physics, rig, touchHandler, ai, petModeEnabled);
+        renderer.render(canvas, layer, physics, rig, touchHandler, ai, petModeEnabled,
+                screenWidth, screenHeight);
 
-        // Render dreams if sleeping
-        if (petModeEnabled && GooseDreams.isDreaming()) {
-            GooseDreams.render(canvas);
-        }
-
-        // Render minigames
-        if (petModeEnabled && MiniGames.isPlaying()) {
-            MiniGames.render(canvas);
-        }
-
-        // Render debug overlay
-        if (debugMode) {
-            renderDebugOverlay();
+        if (layer == GooseRenderer.Layer.WORLD) {
+            if (petModeEnabled && GooseDreams.isDreaming()) {
+                GooseDreams.render(canvas);
+            }
+            if (petModeEnabled && MiniGames.isPlaying()) {
+                MiniGames.render(canvas);
+            }
+            if (debugMode) {
+                renderDebugOverlay();
+            }
         }
     }
 
@@ -831,20 +986,15 @@ public class TheGoose implements
     private static void applyEasterEggEffects() {
         GooseEasterEggs.SecretMode mode = GooseEasterEggs.getCurrentMode();
 
+        // Cada flag refleja solo el modo actual: al cambiar de modo no quedan restos
+        GooseVisualEffects.setDiscoModeActive(mode == GooseEasterEggs.SecretMode.DISCO_GOOSE);
+        GooseVisualEffects.setGhostModeActive(mode == GooseEasterEggs.SecretMode.GHOST_GOOSE);
+        GooseVisualEffects.setRainbowTrailActive(mode == GooseEasterEggs.SecretMode.RAINBOW_GOOSE);
+        GooseVisualEffects.setGoldenGlowActive(mode == GooseEasterEggs.SecretMode.GOLDEN_GOOSE);
+
         switch (mode) {
             case DISCO_GOOSE:
-                GooseVisualEffects.setDiscoModeActive(true);
-                int discoColor = GooseVisualEffects.getDiscoColor();
-                BodyColor = discoColor;
-                break;
-            case GHOST_GOOSE:
-                GooseVisualEffects.setGhostModeActive(true);
-                break;
-            case RAINBOW_GOOSE:
-                GooseVisualEffects.setRainbowTrailActive(true);
-                break;
-            case GOLDEN_GOOSE:
-                GooseVisualEffects.setGoldenGlowActive(true);
+                discoBodyColor = GooseVisualEffects.getDiscoColor();
                 break;
             case PARTY_GOOSE:
                 // Spawn confetti periodically
@@ -855,14 +1005,11 @@ public class TheGoose implements
                 }
                 break;
             default:
-                // Reset effects if no mode active
-                GooseVisualEffects.setDiscoModeActive(false);
-                GooseVisualEffects.setGhostModeActive(false);
-                GooseVisualEffects.setRainbowTrailActive(false);
-                GooseVisualEffects.setGoldenGlowActive(false);
                 break;
         }
     }
+
+    private static int discoBodyColor = DEFAULT_BODY_COLOR;
 
     private static void renderDebugOverlay() {
         Paint debugPaint = new Paint();
@@ -1029,23 +1176,60 @@ public class TheGoose implements
 
         // Generate periodic thoughts
         if (timeSinceThought >= nextThoughtTime && thoughtDisplayTime <= 0) {
-            GooseLLM.generateThought(ctx, thought -> {
-                if (thought != null && !thought.isEmpty()) {
-                    setThought(thought);
-                }
-            });
+            com.cfks.goosedroid.brain.BrainController.requestThought(
+                    com.cfks.goosedroid.brain.BrainTrigger.Kind.IDLE_THOUGHT, "");
             timeSinceThought = 0;
             nextThoughtTime = SamMath.RandomRange(THOUGHT_INTERVAL_MIN, THOUGHT_INTERVAL_MAX);
         }
+
+        com.cfks.goosedroid.brain.BrainController.onTick(deltaTime);
     }
 
     /**
      * Set a new thought to display.
      */
     public static void setThought(String thought) {
-        currentThought = thought;
-        thoughtDisplayTime = THOUGHT_DISPLAY_DURATION;
+        currentThought = thought != null ? thought : "";
+        // Las frases largas se quedan más tiempo en pantalla
+        thoughtDuration = Math.min(THOUGHT_MAX_DURATION,
+                THOUGHT_DISPLAY_DURATION + currentThought.length() * THOUGHT_SECONDS_PER_CHAR);
+        thoughtDisplayTime = thoughtDuration;
         timeSinceThought = 0;
+    }
+
+    private static final float THOUGHT_SECONDS_PER_CHAR = 0.06f;
+    private static final float THOUGHT_MAX_DURATION = 12f;
+    private static float thoughtDuration = THOUGHT_DISPLAY_DURATION;
+
+    // ============== ENTRADAS DEL CEREBRO ==============
+
+    /** true si el humano lo está tocando o hay un minijuego: no interrumpir. */
+    public static boolean isBusyWithHuman() {
+        if (touchHandler == null || ai == null) return true;
+        return touchHandler.isBeingPetted() || touchHandler.isBeingDragged()
+                || isMiniGamePlaying();
+    }
+
+    public static void requestTask(GooseTasks.GooseTask task) {
+        if (isRunning() && !isBusyWithHuman() && ai.getCurrentTask() != task) {
+            ai.setTask(task, false);
+        }
+    }
+
+    public static void requestEvent(GooseAI.RandomEvent event) {
+        if (isRunning() && !isBusyWithHuman()) {
+            ai.forceRandomEvent(event);
+        }
+    }
+
+    public static void showEmoji(String emoji) {
+        if (touchHandler != null && emoji != null && !emoji.isEmpty()) {
+            touchHandler.showEmoji(emoji);
+        }
+    }
+
+    public static String getCurrentTaskName() {
+        return ai != null ? ai.getCurrentTask().name() : "";
     }
 
     /**
@@ -1060,9 +1244,9 @@ public class TheGoose implements
      */
     public static float getThoughtAlpha() {
         if (thoughtDisplayTime <= 0) return 0f;
-        if (thoughtDisplayTime > THOUGHT_DISPLAY_DURATION - 0.5f) {
+        if (thoughtDisplayTime > thoughtDuration - 0.5f) {
             // Fade in
-            return (THOUGHT_DISPLAY_DURATION - thoughtDisplayTime) / 0.5f;
+            return (thoughtDuration - thoughtDisplayTime) / 0.5f;
         } else if (thoughtDisplayTime < 0.5f) {
             // Fade out
             return thoughtDisplayTime / 0.5f;
@@ -1184,6 +1368,7 @@ public class TheGoose implements
     private static void unlockAchievement(Achievement achievement) {
         unlockedAchievements.put(achievement, true);
         stats.achievementsUnlocked++;
+        lastAutoSave = 0; // forzar guardado en el próximo tick
 
         // Queue the achievement notification
         queueAchievementNotification(achievement);
@@ -1502,6 +1687,28 @@ public class TheGoose implements
         }
     }
 
+    /** Un baño: queda limpio y contento. */
+    public static void startCleaning() {
+        if (ai == null) return;
+        PetNeeds.get().clean();
+        if (physics != null) {
+            GooseVisualEffects.spawnSparkles(physics.getPosition().x, physics.getPosition().y, 12);
+        }
+        com.cfks.goosedroid.brain.BrainController.requestThought(
+                com.cfks.goosedroid.brain.BrainTrigger.Kind.CLEANED, "");
+    }
+
+    /** Un remedio: mejora la salud. */
+    public static void startHealing() {
+        if (ai == null) return;
+        PetNeeds.get().heal();
+        if (physics != null) {
+            GooseVisualEffects.spawnHearts(physics.getPosition().x, physics.getPosition().y, 4);
+        }
+        com.cfks.goosedroid.brain.BrainController.requestThought(
+                com.cfks.goosedroid.brain.BrainTrigger.Kind.HEALED, "");
+    }
+
     public static void startSleeping() {
         if (ai != null) {
             ai.startSleeping();
@@ -1574,7 +1781,9 @@ public class TheGoose implements
             renderer.outlineColor = OutLineColor;
             renderer.mouthColor = MouthColor;
             renderer.eyeColor = EyeColor;
-            renderer.bodyColor = BodyColor;
+            boolean isDisco =
+                    GooseEasterEggs.getCurrentMode() == GooseEasterEggs.SecretMode.DISCO_GOOSE;
+            renderer.bodyColor = isDisco ? discoBodyColor : BodyColor;
         }
     }
 
@@ -1678,12 +1887,8 @@ public class TheGoose implements
                 com.cfks.goosedroid.GooseEvolution.recordPet(ctx);  // Track for evolution
                 GooseEasterEggs.recordPet();
                 GooseDreams.recordPetReceived();
-                // Generate LLM response for petting
-                GooseLLM.generateResponse("acariciar al ganso", thought -> {
-                    if (thought != null && !thought.isEmpty()) {
-                        touchHandler.showEmoji(thought);
-                    }
-                });
+                com.cfks.goosedroid.brain.BrainController.requestThought(
+                        com.cfks.goosedroid.brain.BrainTrigger.Kind.PETTED, "");
                 break;
 
             case BOOP:
@@ -1697,6 +1902,11 @@ public class TheGoose implements
                 incrementAchievement(Achievement.THROWER);
                 checkAchievement(Achievement.LAUNCH_PRO, stats.totalThrows);
                 broadcastEvent(EventType.THROWN, touchHandler.getDragVelocity());
+                break;
+
+            case LONG_PRESS:
+                // Mantenerlo apretado abre la ventanita para hablarle
+                openQuickChat();
                 break;
 
             case DOUBLE_TAP:

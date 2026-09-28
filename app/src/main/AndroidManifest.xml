@@ -10,6 +10,7 @@
         android:icon="@drawable/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"
+        android:usesCleartextTraffic="true"
         android:theme="@style/AppTheme">
         <activity
             android:name=".MainActivity"
@@ -21,9 +22,42 @@
             </intent-filter>
         </activity>
         <activity
+            android:name=".BrainActivity"
+            android:exported="false"
+            android:parentActivityName=".MainActivity"
+            android:windowSoftInputMode="adjustResize" />
+        <!-- Ventanita para hablarle al ganso encima de cualquier app -->
+        <activity
+            android:name=".QuickChatActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:taskAffinity=""
+            android:theme="@style/AppTheme.QuickChat"
+            android:windowSoftInputMode="stateVisible|adjustResize" />
+        <activity
             android:name=".CustomizeActivity"
             android:exported="false"
             android:parentActivityName=".MainActivity" />
+
+        <!-- Dueño del overlay: mantiene al ganso en pantalla sin la Activity -->
+        <service
+            android:name=".overlay.GooseOverlayService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Mascota virtual dibujada como overlay sobre otras apps" />
+        </service>
+
+        <!-- Enciende al ganso tras reiniciar o actualizar, si estaba encendido -->
+        <receiver
+            android:name=".overlay.OverlayAutostartReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Notification Receiver -->
         <receiver
@@ -34,18 +68,17 @@
             </intent-filter>
         </receiver>
 
+        <!-- Botones del widget: no exportado, otras apps no pueden usarlo -->
+        <receiver
+            android:name=".PetWidgetActionReceiver"
+            android:exported="false" />
+
         <!-- Pet Widget -->
         <receiver
             android:name=".PetWidget"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="com.cfks.goosedroid.ACTION_FEED" />
-                <action android:name="com.cfks.goosedroid.ACTION_PLAY" />
-                <action android:name="com.cfks.goosedroid.ACTION_SLEEP" />
-                <action android:name="com.cfks.goosedroid.ACTION_REFRESH" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
@@ -55,9 +88,10 @@
     <!-- <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" /> -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <uses-permission android:name="android.permission.SYSTEM_OVERLAY_WINDOW" />
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>

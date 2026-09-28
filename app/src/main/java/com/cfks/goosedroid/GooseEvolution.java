@@ -16,7 +16,7 @@ public class GooseEvolution {
     // ============== EVOLUTION STAGES ==============
 
     public enum Stage {
-        EGG(0, "Huevo", 0f, 0),
+        EGG(0, "Huevo", 0.45f, 0),
         HATCHLING(1, "Polluelo", 0.6f, 1),
         GOSLING(2, "Ganso Joven", 0.8f, 2),
         ADULT(3, "Ganso Adulto", 1.0f, 3),

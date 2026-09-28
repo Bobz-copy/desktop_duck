@@ -85,8 +85,10 @@ public class GooseEasterEggs {
             unlockedSecrets.put(unlock, false);
         }
 
-        // Modo none siempre disponible
-        availableModes.add(SecretMode.NONE);
+        // Modo none siempre disponible (la lista es estática: no duplicar en cada init)
+        if (!availableModes.contains(SecretMode.NONE)) {
+            availableModes.add(SecretMode.NONE);
+        }
 
         lastInteractionTime = System.currentTimeMillis();
     }
@@ -260,6 +262,11 @@ public class GooseEasterEggs {
         // Bonus de felicidad
         PetNeeds.get().happiness = Math.min(100, PetNeeds.get().happiness + 15);
 
+        // Los secretos cuentan para la evolución
+        if (context != null) {
+            com.cfks.goosedroid.GooseEvolution.recordSecretFound(context);
+        }
+
         // Sonido especial
         if (!Sound.isSilenced()) {
             Sound.PlayHonk();
@@ -346,28 +353,43 @@ public class GooseEasterEggs {
      * Activar modo secreto aleatorio de los disponibles.
      */
     public static void activateRandomMode() {
-        if (availableModes.size() <= 1) {
+        // Elegir sobre una lista filtrada: sin bucle que pueda no terminar.
+        java.util.List<SecretMode> selectable = new java.util.ArrayList<>();
+        for (SecretMode mode : availableModes) {
+            if (mode != SecretMode.NONE) {
+                selectable.add(mode);
+            }
+        }
+        if (selectable.isEmpty()) {
             return; // Solo NONE disponible
         }
 
-        // Elegir uno que no sea NONE
-        SecretMode newMode;
-        do {
-            newMode = availableModes.get(random.nextInt(availableModes.size()));
-        } while (newMode == SecretMode.NONE && availableModes.size() > 1);
-
-        activateMode(newMode);
+        activateMode(selectable.get(random.nextInt(selectable.size())));
     }
 
     /**
      * Activar un modo específico.
      */
     public static void activateMode(SecretMode mode) {
+        // Un modo a la vez: revertir el anterior antes de aplicar el nuevo
+        resetModeEffects();
+
         currentMode = mode;
+        modeEndTimeMs = android.os.SystemClock.elapsedRealtime() + MODE_DURATION_MS;
         Log.i(TAG, "Secret mode activated: " + mode.name());
 
         // Aplicar efectos del modo
         applyModeEffects(mode);
+    }
+
+    /**
+     * Apaga el modo activo cuando se cumple su duración. Llamar una vez por frame.
+     */
+    public static void updateMode() {
+        if (currentMode != SecretMode.NONE
+                && android.os.SystemClock.elapsedRealtime() >= modeEndTimeMs) {
+            deactivateMode();
+        }
     }
 
     /**
@@ -384,17 +406,17 @@ public class GooseEasterEggs {
     private static void applyModeEffects(SecretMode mode) {
         switch (mode) {
             case GIANT_GOOSE:
-                TheGoose.DrawScale = 3.0f;
+                TheGoose.DrawScale *= GIANT_SCALE_FACTOR;
                 break;
             case MINI_GOOSE:
-                TheGoose.DrawScale = 0.5f;
+                TheGoose.DrawScale *= MINI_SCALE_FACTOR;
                 break;
             case GHOST_GOOSE:
                 // Se maneja en el renderer
                 break;
             case GOLDEN_GOOSE:
-                PetAppearance.get().bodyColor = 0xFFFFD700; // Gold
-                PetAppearance.get().accentColor = 0xFFFFA500; // Orange
+                // Solo el brillo dorado del renderer: la apariencia elegida por
+                // el usuario se guarda en disco y no se toca.
                 break;
             case TURBO_GOOSE:
                 TheGoose.WanderSpeed = 400f;
@@ -411,10 +433,15 @@ public class GooseEasterEggs {
      * Resetear efectos de modo.
      */
     private static void resetModeEffects() {
-        TheGoose.DrawScale = 1.0f;
-        TheGoose.WanderSpeed = 200f;
-        // Los colores se resetean desde PetAppearance defaults
+        TheGoose.DrawScale = TheGoose.BASE_DRAW_SCALE
+                * com.cfks.goosedroid.GooseEvolution.getSizeMultiplier();
+        TheGoose.WanderSpeed = TheGoose.DEFAULT_WANDER_SPEED;
     }
+
+    private static final float GIANT_SCALE_FACTOR = 1.6f;
+    private static final float MINI_SCALE_FACTOR = 0.5f;
+    private static final long MODE_DURATION_MS = 45_000L;
+    private static long modeEndTimeMs = 0L;
 
     // ============== EVENTOS ESPECIALES ==============
 

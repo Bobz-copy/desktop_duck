@@ -10,7 +10,11 @@ An Android virtual pet inspired by [Desktop Goose](https://samperson.itch.io/des
 
 **AI Behaviors** — Priority-based behavior tree drives decisions. The goose wanders, reacts to touch, sleeps, eats, plays, trolls you, and adapts to time of day, battery level, and inactivity.
 
-**Tamagotchi Needs** — Hunger, energy, and happiness decay over time. Neglect the goose and it'll let you know. Critical needs trigger notifications.
+**AI Brain** — What the goose says and decides comes from a pluggable language model: built-in templates, an on-device model (LiteRT-LM: Gemma 4, Qwen3, LFM2.5), Ollama on your PC, any OpenAI-compatible server, Gemini, or Claude. It remembers what you tell it, writes a nightly diary, dreams, brings you notes and can read its words aloud. If a model fails, it falls back to templates — the goose is never mute.
+
+**Talk to It** — Hold the goose still for half a second to open a small chat window on top of any app.
+
+**Tamagotchi Needs** — Hunger, energy, happiness, hygiene and health, on a scale of hours (not minutes). It sleeps at night by itself, gets dirty in the mud, can get sick if neglected, and never "dies" from a night without attention.
 
 **Touch Interactions** — Pet, drag, throw, boop, tickle, belly rub, and more. Each gesture has unique responses and affects personality.
 
@@ -53,10 +57,23 @@ TheGoose (Central coordinator)
 ├── GooseEasterEggs     — Secret modes and hidden interactions
 ├── GooseTrolling       — Fake notifications, vibration, troll messages
 ├── GooseSystemReactions— Reacts to battery, time of day, inactivity
+├── GooseNotes          — Notes the goose drags in from the screen edge
+├── NightRoutine        — Sleeps by itself at night
 └── MiniGames           — Feeding, chasing, hide & seek, honk hero, memory honk
 
+overlay/GooseOverlayService — Foreground service that owns the overlay (two windows:
+                              full-screen effects + a small touchable window that follows the goose)
+
+brain/                  — Language-model brain
+├── GooseBrain          — One thought at a time, rate limit, fallback, backoff
+├── PromptBuilder       — Stable system prompt + JSON schema for the reply
+├── IntentParser        — Tolerant parsing of model output
+├── BrainMemory         — Long-term memory and diary
+└── backend/            — Templates, LiteRT-LM, OpenAI-compatible, Anthropic
+
 Pet Systems:
-├── PetNeeds            — Hunger, energy, happiness with decay rates
+├── PetNeeds            — Hunger, energy, happiness, hygiene, health
+├── PetRepository       — Single source of truth for saved state (atomic writes)
 ├── PetPersonality      — Evolving traits [-100..+100]
 ├── GooseEvolution      — Growth stages from Egg to Cosmic
 ├── PetAppearance       — Colors, hats, accessories, creature types
@@ -70,9 +87,9 @@ Pet Systems:
 | **Language** | Java 11 |
 | **Min SDK** | 24 (Android 7.0) |
 | **Target SDK** | 36 |
-| **Build** | Gradle + AGP 8.12.0 |
+| **Build** | Gradle 8.13 + AGP 8.12.0, Gradle daemon on JDK 21 (picked automatically) |
 | **UI** | Android Canvas (procedural rendering) |
-| **AI** | Custom behavior tree + decision engine |
+| **AI** | Behavior tree + pluggable LLM brain (LiteRT-LM, OpenAI-compatible, Anthropic SDK) |
 | **Physics** | Custom physics engine with IK |
 | **Audio** | SoundPool + MediaPlayer |
 
@@ -86,8 +103,10 @@ Pet Systems:
 ./gradlew assembleRelease
 
 # Run tests
-./gradlew test
+./gradlew testDebugUnitTest
 ```
+
+Building requires JDK 21 installed (the LiteRT-LM library ships Java 21 bytecode); `gradle/gradle-daemon-jvm.properties` makes Gradle pick it even if `JAVA_HOME` points elsewhere.
 
 The APK will be generated in `app/build/outputs/apk/`.
 
@@ -107,8 +126,15 @@ The APK will be generated in `app/build/outputs/apk/`.
 | `VIBRATE` | Haptic feedback & trolling |
 | `POST_NOTIFICATIONS` | Pet need alerts |
 | `SCHEDULE_EXACT_ALARM` | Timed reminders |
-| `FOREGROUND_SERVICE` | Keep goose alive |
-| `RECEIVE_BOOT_COMPLETED` | Auto-start on boot |
+| `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_SPECIAL_USE` | Keep the goose on screen |
+| `RECEIVE_BOOT_COMPLETED` | Bring the goose back after a reboot, if it was on |
+| `INTERNET` | Remote brains and model downloads (plain HTTP only to the local network) |
+
+## Documentation
+
+- [`docs/GUIA.md`](docs/GUIA.md) — user guide (Spanish): install, HyperOS settings, choosing a brain, features.
+- [`docs/PLAN.md`](docs/PLAN.md) — implementation plan, LLM research, measurements and status.
+- [`docs/auditoria-2026-09-27.md`](docs/auditoria-2026-09-27.md) — the original bug audit.
 
 ## Troubleshooting
 

@@ -11,6 +11,7 @@ import android.widget.*;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.cfks.goosedroid.GooseDesktop.TheGoose;
+import com.cfks.goosedroid.overlay.GooseOverlayService;
 
 import java.util.*;
 
@@ -47,15 +48,18 @@ public class MainActivity extends AppCompatActivity {
     private MaterialButton FeedButton;
     private MaterialButton PlayButton;
     private MaterialButton SleepButton;
+    private ProgressBar HygieneBar;
+    private ProgressBar HealthBar;
+    private MaterialButton CleanButton;
+    private MaterialButton HealButton;
     private MaterialButton CustomizeButton;
     private Handler petStatusHandler;
 
     private String ConfigFilePath = "";
     private PermissionRequest permissionRequest;
-    private WindowManager wm1;
-    private WindowManager.LayoutParams wmlay1;
-    private GooseView gooseView;
     private boolean isTouchable = true;
+    private boolean isSyncingOverlaySwitch = false;
+    private static final int REQUEST_POST_NOTIFICATIONS = 5005;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -88,65 +92,25 @@ public class MainActivity extends AppCompatActivity {
         // Set up toolbar
         this.setSupportActionBar(DefToolBar);
 
-        GooseDroid.setOnCheckedChangeListener(new Switch.OnCheckedChangeListener() {
-            @SuppressLint("RtlHardcoded")
-            @Override
-            public void onCheckedChanged(CompoundButton cb, boolean isEnabled) {
-                try {
-                    if (isEnabled) {
-                        if (!permissionRequest.hasOverlayPermission()) {
-                            GooseDroid.setChecked(false);
-                            Utils.showToast(MainActivity.this, getText(R.string.PleaseEnableFloatingWindowPermission));
-                            permissionRequest.requestOverlayPermission();
-                        } else {
-                            ConfigureActivity ca = new ConfigureActivity(MainActivity.this);
-                            ca.readFromSD(ConfigFilePath);
-                            // Apply DrawSize from config
-                            try {
-                                String drawSizeStr = ca.getIniKey("DrawSize");
-                                if (drawSizeStr != null) {
-                                    GooseView.DrawSize = Float.parseFloat(drawSizeStr);
-                                }
-                            } catch (Exception ignored) {}
-                            gooseView = new GooseView(MainActivity.this, ca);
-                            wm1 = (WindowManager) getApplicationContext().getSystemService(Context.WINDOW_SERVICE);
-                            wmlay1 = new WindowManager.LayoutParams();
-                            // Set window type based on SDK version
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                wmlay1.type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
-                            } else {
-                                wmlay1.type = WindowManager.LayoutParams.TYPE_PHONE;
-                            }
-                            wmlay1.format = PixelFormat.RGBA_8888; // Transparent background
-                            wmlay1.gravity = Gravity.RIGHT | Gravity.TOP;
-                            // Use FLAG_NOT_TOUCH_MODAL to allow touches to pass through
-                            // The GooseView will decide which touches to handle (near goose) or pass through
-                            if (isTouchable) {
-                                wmlay1.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                                        | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-                                        | WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH;
-                            } else {
-                                wmlay1.flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-                                        | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
-                                        | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
-                            }
-                            wmlay1.x = 0;
-                            wmlay1.y = 0;
-                            wmlay1.width = Utils.getScreenWidth(MainActivity.this);
-                            wmlay1.height = Utils.getScreenHeight(MainActivity.this);
-                            wm1.addView(gooseView, wmlay1);
-                            Utils.showToast(MainActivity.this, getText(R.string.GooseDroidEnable));
-                        }
-                    } else {
-                        wm1.removeView(gooseView);
-                        gooseView = null;
-                        Utils.showToast(MainActivity.this, getText(R.string.GooseDroidDisable));
-                    }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    showErrorAlert(e);
-                }
+        GooseDroid.setChecked(GooseOverlayService.isRunning());
+        GooseDroid.setOnCheckedChangeListener((cb, isEnabled) -> {
+            if (isSyncingOverlaySwitch) return;
+            if (!isEnabled) {
+                GooseOverlayService.stop(MainActivity.this);
+                Utils.showToast(MainActivity.this, getText(R.string.GooseDroidDisable));
+                return;
             }
+            if (!permissionRequest.hasOverlayPermission()) {
+                GooseDroid.setChecked(false);
+                Utils.showToast(MainActivity.this, getText(R.string.PleaseEnableFloatingWindowPermission));
+                permissionRequest.requestOverlayPermission();
+                return;
+            }
+            requestNotificationPermissionIfNeeded();
+            // El servicio lee la configuración de disco: guardar lo que hay en pantalla
+            savePetState();
+            GooseOverlayService.start(MainActivity.this);
+            Utils.showToast(MainActivity.this, getText(R.string.GooseDroidEnable));
         });
 
         ShowShadow.setOnClickListener(new View.OnClickListener() {
@@ -171,10 +135,10 @@ public class MainActivity extends AppCompatActivity {
                         DrawSize.setText(String.valueOf(size));
                         Utils.showToast(MainActivity.this, getText(R.string.DrawSizeTooLarge));
                     }
-                    GooseView.DrawSize = size;
+                    GooseOverlayService.setWorldScale(size);
                 } catch (NumberFormatException e) {
                     // Invalid number format - reset to default
-                    GooseView.DrawSize = 1.0f;
+                    GooseOverlayService.setWorldScale(1.0f);
                     DrawSize.setText("1.0");
                     Utils.showToast(MainActivity.this, getText(R.string.InvalidDrawSize));
                 } catch (Exception e) {
@@ -217,6 +181,22 @@ public class MainActivity extends AppCompatActivity {
         FeedButton = findViewById(R.id.FeedButton);
         PlayButton = findViewById(R.id.PlayButton);
         SleepButton = findViewById(R.id.SleepButton);
+        HygieneBar = findViewById(R.id.HygieneBar);
+        HealthBar = findViewById(R.id.HealthBar);
+        CleanButton = findViewById(R.id.CleanButton);
+        HealButton = findViewById(R.id.HealButton);
+        if (CleanButton != null) {
+            CleanButton.setOnClickListener(v -> {
+                TheGoose.startCleaning();
+                Utils.showToast(this, getText(R.string.CleaningPet));
+            });
+        }
+        if (HealButton != null) {
+            HealButton.setOnClickListener(v -> {
+                TheGoose.startHealing();
+                Utils.showToast(this, getText(R.string.HealingPet));
+            });
+        }
 
         // Set up pet status update handler
         petStatusHandler = new Handler(Looper.getMainLooper());
@@ -266,6 +246,12 @@ public class MainActivity extends AppCompatActivity {
             });
         }
 
+        View brainButton = findViewById(R.id.BrainButton);
+        if (brainButton != null) {
+            brainButton.setOnClickListener(v ->
+                    startActivity(new Intent(MainActivity.this, BrainActivity.class)));
+        }
+
         // Customize button
         CustomizeButton = findViewById(R.id.CustomizeButton);
         if (CustomizeButton != null) {
@@ -294,6 +280,14 @@ public class MainActivity extends AppCompatActivity {
         if (FeedButton != null) FeedButton.setVisibility(visibility);
         if (PlayButton != null) PlayButton.setVisibility(visibility);
         if (SleepButton != null) SleepButton.setVisibility(visibility);
+        if (HygieneBar != null) HygieneBar.setVisibility(visibility);
+        if (HealthBar != null) HealthBar.setVisibility(visibility);
+        if (CleanButton != null) CleanButton.setVisibility(visibility);
+        if (HealButton != null) HealButton.setVisibility(visibility);
+        View hygieneLabel = findViewById(R.id.HygieneLabel);
+        View healthLabel = findViewById(R.id.HealthLabel);
+        if (hygieneLabel != null) hygieneLabel.setVisibility(visibility);
+        if (healthLabel != null) healthLabel.setVisibility(visibility);
         if (CustomizeButton != null) CustomizeButton.setVisibility(visibility);
         if (TouchableSwitch != null) TouchableSwitch.setVisibility(visibility);
 
@@ -310,16 +304,28 @@ public class MainActivity extends AppCompatActivity {
      * Update window touchability at runtime.
      */
     private void updateWindowTouchability() {
-        if (wm1 != null && gooseView != null && wmlay1 != null) {
-            if (isTouchable) {
-                wmlay1.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
-            } else {
-                wmlay1.flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-                        | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
-                        | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
-            }
-            wm1.updateViewLayout(gooseView, wmlay1);
+        GooseOverlayService.setTouchEnabled(isTouchable);
+    }
+
+    /**
+     * Android 13+ exige pedir el permiso de notificaciones en runtime. Sin él no
+     * se ven los avisos de la mascota ni la notificación del servicio.
+     */
+    private void requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return;
+        if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            return;
         }
+        requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS},
+                REQUEST_POST_NOTIFICATIONS);
+    }
+
+    /** El servicio puede haberse apagado desde su notificación. */
+    private void syncOverlaySwitch() {
+        isSyncingOverlaySwitch = true;
+        GooseDroid.setChecked(GooseOverlayService.isRunning());
+        isSyncingOverlaySwitch = false;
     }
 
     /**
@@ -352,6 +358,12 @@ public class MainActivity extends AppCompatActivity {
         if (HappinessBar != null) {
             HappinessBar.setProgress((int) PetNeeds.get().happiness);
         }
+        if (HygieneBar != null) {
+            HygieneBar.setProgress((int) PetNeeds.get().hygiene);
+        }
+        if (HealthBar != null) {
+            HealthBar.setProgress((int) PetNeeds.get().health);
+        }
         if (PetStatusText != null) {
             String status = PetPersonality.get().getTitle() + " - " + PetNeeds.get().getMoodStateString();
             PetStatusText.setText(status);
@@ -363,7 +375,6 @@ public class MainActivity extends AppCompatActivity {
      */
     private void savePetState() {
         try {
-            ConfigureActivity ca = new ConfigureActivity(this);
             Properties prop = new Properties();
 
             // Existing config
@@ -381,38 +392,13 @@ public class MainActivity extends AppCompatActivity {
             prop.put("FirstWanderTimeSeconds", FirstWanderTimeSeconds.getText().toString());
             prop.put("DrawSize", DrawSize.getText().toString());
 
-            // Pet mode config
-            prop.put("PetModeEnabled", capitalizeFirst(String.valueOf(PetModeSwitch != null && PetModeSwitch.isChecked())));
             prop.put("TouchableEnabled", capitalizeFirst(String.valueOf(isTouchable)));
 
-            // Pet needs
-            prop.put("PetHunger", String.valueOf(PetNeeds.get().hunger));
-            prop.put("PetEnergy", String.valueOf(PetNeeds.get().energy));
-            prop.put("PetHappiness", String.valueOf(PetNeeds.get().happiness));
-            prop.put("LastPlayedTimestamp", String.valueOf(System.currentTimeMillis()));
-
-            // Pet personality
-            prop.put("PersonalityPlayfulness", String.valueOf(PetPersonality.get().playfulness));
-            prop.put("PersonalityAffection", String.valueOf(PetPersonality.get().affection));
-            prop.put("PersonalityBravery", String.valueOf(PetPersonality.get().bravery));
-            prop.put("PersonalityMischief", String.valueOf(PetPersonality.get().mischief));
-            prop.put("TotalPets", String.valueOf(PetPersonality.get().getTotalPets()));
-            prop.put("TotalPlays", String.valueOf(PetPersonality.get().getTotalPlays()));
-            prop.put("TotalFeeds", String.valueOf(PetPersonality.get().getTotalFeeds()));
-
-            // Pet appearance
-            prop.put("PetBodyColor", PetAppearance.get().colorToHex(PetAppearance.get().bodyColor));
-            prop.put("PetAccentColor", PetAppearance.get().colorToHex(PetAppearance.get().accentColor));
-            prop.put("PetOutlineColor", PetAppearance.get().colorToHex(PetAppearance.get().outlineColor));
-            prop.put("PetEyeColor", PetAppearance.get().colorToHex(PetAppearance.get().eyeColor));
-            prop.put("PetHatId", String.valueOf(PetAppearance.get().hatId));
-            prop.put("PetAccessoryId", String.valueOf(PetAppearance.get().accessoryId));
-            prop.put("PetCreatureType", String.valueOf(PetAppearance.get().creatureType));
-            prop.put("PetName", PetAppearance.get().petName);
-
-            ca.saveFiletoSD(ConfigFilePath, prop);
-        } catch (Exception e) {
-            e.printStackTrace();
+            // El estado de la mascota lo agrega el repositorio
+            PetRepository.save(this, prop);
+            PetWidget.updateAllWidgets(this);
+        } catch (RuntimeException e) {
+            android.util.Log.e("MainActivity", "Error guardando el estado", e);
         }
     }
 
@@ -427,10 +413,10 @@ public class MainActivity extends AppCompatActivity {
             // Load pet mode setting
             String petModeStr = ca.getIniKey("PetModeEnabled");
             boolean petModeEnabled = petModeStr != null && string2boolean(petModeStr);
+            TheGoose.petModeEnabled = petModeEnabled;
             if (PetModeSwitch != null) {
                 PetModeSwitch.setChecked(petModeEnabled);
             }
-            TheGoose.petModeEnabled = petModeEnabled;
             updatePetModeUIVisibility(petModeEnabled);
 
             // Load touchable setting
@@ -440,41 +426,8 @@ public class MainActivity extends AppCompatActivity {
                 TouchableSwitch.setChecked(isTouchable);
             }
 
-            // Load pet needs
-            float savedHunger = parseFloatSafe(ca.getIniKey("PetHunger"), 50f);
-            float savedEnergy = parseFloatSafe(ca.getIniKey("PetEnergy"), 100f);
-            float savedHappiness = parseFloatSafe(ca.getIniKey("PetHappiness"), 75f);
-            long savedTimestamp = parseLongSafe(ca.getIniKey("LastPlayedTimestamp"), 0);
-            PetNeeds.get().loadState(savedHunger, savedEnergy, savedHappiness, savedTimestamp);
-
-            // Load pet personality
-            float playfulness = parseFloatSafe(ca.getIniKey("PersonalityPlayfulness"), 0f);
-            float affection = parseFloatSafe(ca.getIniKey("PersonalityAffection"), 0f);
-            float bravery = parseFloatSafe(ca.getIniKey("PersonalityBravery"), 0f);
-            float mischief = parseFloatSafe(ca.getIniKey("PersonalityMischief"), 50f);
-            int totalPets = parseIntSafe(ca.getIniKey("TotalPets"), 0);
-            int totalPlays = parseIntSafe(ca.getIniKey("TotalPlays"), 0);
-            int totalFeeds = parseIntSafe(ca.getIniKey("TotalFeeds"), 0);
-            long lastInteraction = parseLongSafe(ca.getIniKey("LastPlayedTimestamp"), System.currentTimeMillis());
-            PetPersonality.get().loadState(playfulness, affection, bravery, mischief,
-                    totalPets, totalPlays, totalFeeds, lastInteraction);
-
-            // Load pet appearance
-            int bodyColor = PetAppearance.get().hexToColor(ca.getIniKey("PetBodyColor"));
-            int accentColor = PetAppearance.get().hexToColor(ca.getIniKey("PetAccentColor"));
-            int outlineColor = PetAppearance.get().hexToColor(ca.getIniKey("PetOutlineColor"));
-            int eyeColor = PetAppearance.get().hexToColor(ca.getIniKey("PetEyeColor"));
-            int hatId = parseIntSafe(ca.getIniKey("PetHatId"), 0);
-            int accessoryId = parseIntSafe(ca.getIniKey("PetAccessoryId"), 0);
-            int creatureType = parseIntSafe(ca.getIniKey("PetCreatureType"), 0);
-            String petName = ca.getIniKey("PetName");
-            if (petName == null) petName = "Goose";
-
-            // Only load appearance if pet mode is enabled
-            if (petModeEnabled) {
-                PetAppearance.get().loadState(bodyColor, accentColor, outlineColor, eyeColor,
-                        hatId, accessoryId, creatureType, petName);
-            }
+            // Necesidades, personalidad y apariencia: una sola vez por proceso
+            PetRepository.ensureLoaded(this);
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -560,7 +513,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public static boolean string2boolean(String str) {
-        return Boolean.parseBoolean(str.toLowerCase());
+        return str != null && Boolean.parseBoolean(str.trim().toLowerCase());
     }
 
     private void setEditTextContent(EditText editText, String content) {
@@ -572,10 +525,6 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
-        // Pause goose rendering to save battery
-        if (gooseView != null) {
-            gooseView.pauseRendering();
-        }
 
         // Save pet state when app is paused
         if (TheGoose.petModeEnabled) {
@@ -590,10 +539,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        // Resume goose rendering
-        if (gooseView != null) {
-            gooseView.resumeRendering();
-        }
+        syncOverlaySwitch();
 
         // Stop notification checks when app is in foreground
         PetNotificationManager.stopPeriodicCheck();
@@ -610,27 +556,7 @@ public class MainActivity extends AppCompatActivity {
             petStatusHandler = null;
         }
 
-        // Save final state
-        if (TheGoose.petModeEnabled) {
-            savePetState();
-        }
-
-        // Clean up goose view properly
-        if (gooseView != null) {
-            gooseView.cleanup();
-            if (GooseDroid.isChecked() && wm1 != null) {
-                try {
-                    wm1.removeView(gooseView);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-            gooseView = null;
-        }
-
-        // Clean up window manager reference
-        wm1 = null;
-        wmlay1 = null;
+        // El overlay pertenece al servicio: cerrar la Activity no lo apaga
     }
 
     @Override
@@ -660,6 +586,7 @@ public class MainActivity extends AppCompatActivity {
                     Utils.deleteFile(ConfigFilePath);
                 }
                 Utils.copyAssetFile(this, "config.ini", ConfigFilePath);
+                PetRepository.reload(this);
                 Utils.showToast(this, getText(R.string.ResetSuccessfully));
                 restartActivity();
                 break;

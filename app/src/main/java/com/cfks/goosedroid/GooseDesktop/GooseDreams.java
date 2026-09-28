@@ -91,7 +91,7 @@ public class GooseDreams {
     private static DreamType currentDreamType = DreamType.PEACEFUL;
     private static List<DreamBubble> bubbles = new ArrayList<>();
     private static float nextBubbleTimer = 0;
-    private static float dreamStartTime = 0;
+    private static double dreamStartTime = 0;
     private static Random random = new Random();
 
     // Memoria del día para influir en sueños
